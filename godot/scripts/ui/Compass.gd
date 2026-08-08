@@ -12,12 +12,16 @@ func _ready() -> void:
 
 var heading := 0.0
 var wind_bearing := 0.0
+var ordered := 0.0
 
-func set_state(hdg: float, wind: float) -> void:
-	if is_equal_approx(hdg, heading) and is_equal_approx(wind, wind_bearing):
+func set_state(hdg: float, wind: float, order := NAN) -> void:
+	var ord: float = hdg if is_nan(order) else order
+	if is_equal_approx(hdg, heading) and is_equal_approx(wind, wind_bearing) \
+			and is_equal_approx(ord, ordered):
 		return
 	heading = hdg
 	wind_bearing = wind
+	ordered = ord
 	queue_redraw()
 
 func _draw() -> void:
@@ -56,6 +60,14 @@ func _draw() -> void:
 	var side := Vector2(wd.y, -wd.x)
 	draw_colored_polygon(PackedVector2Array([
 		tip, tip - wd * 8.0 + side * 4.5, tip - wd * 8.0 - side * 4.5]), ring)
+
+	# 지시한 침로 — 뱃머리가 아직 그쪽으로 도는 중이면 눈금 하나가 앞서 있다.
+	# 이게 없으면 배가 왜 계속 도는지 알 수 없다.
+	var turn := fposmod(ordered - heading + 180.0, 360.0) - 180.0
+	if absf(turn) > 0.6:
+		var oa := deg_to_rad(turn)
+		var od := Vector2(sin(oa), -cos(oa))
+		draw_line(c + od * (rad - 13.0), c + od * (rad - 3.0), Pal.HUD_GOLD, 2.4)
 
 	# 뱃머리는 언제나 위
 	draw_colored_polygon(PackedVector2Array([

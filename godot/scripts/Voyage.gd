@@ -15,9 +15,20 @@ const TIME_SCALES := [1.0, 4.0, 16.0, 60.0]
 
 const BASE_KN := 4.2            ## 돛 한 단당. 전개하면 두 배
 
+## 뱃머리가 실시간 1초에 돌 수 있는 각도.
+##
+## 침로를 찍으면 그 자리에서 뱃머리가 홱 돌아가 있었다. 배는 그렇게 안 돈다.
+## 지시는 즉시 들어가되 뱃머리는 이 속도로 따라 돈다. 시계 배속과는 무관하게
+## 실시간 기준이어야 손맛이 일정하다.
+const TURN_RATE := 22.0
+
+## 정박 중엔 키가 안 듣는다. 물이 흘러야 방향이 잡힌다.
+const TURN_STEERAGE := 0.35     ## 돛을 내렸을 때 남는 선회력
+
 var lon := -9.52
 var lat := 38.66
-var heading := 190.0            ## 도, 0 = 북
+var heading := 190.0            ## 도, 0 = 북. 실제로 뱃머리가 향한 쪽
+var ordered_heading := 190.0    ## 지시한 침로. heading 은 이걸 향해 서서히 돈다
 var sails := 1                  ## 0 정박 / 1 반 / 2 전개
 var wind_brg := 210.0
 var hours := 8.0
@@ -106,6 +117,24 @@ func _release(reason: String) -> void:
 	noted.emit("배속을 풀었다 — %s" % reason, "warn")
 
 # ── 진행 ────────────────────────────────────────────────────────
+## 침로를 지시한다. 뱃머리는 여기까지 스스로 돌아간다.
+func set_course(bearing: float) -> void:
+	ordered_heading = fposmod(bearing, 360.0)
+
+## 지시한 침로 쪽으로 조금씩 키를 잡는다. 가까운 쪽으로 돈다.
+func steer(dt: float) -> void:
+	var diff := fposmod(ordered_heading - heading + 180.0, 360.0) - 180.0
+	if absf(diff) < 0.01:
+		heading = ordered_heading
+		return
+	var rate := TURN_RATE * lerpf(TURN_STEERAGE, 1.0, clampf(speed_knots() / 6.0, 0.0, 1.0))
+	heading = fposmod(heading + clampf(diff, -rate * dt, rate * dt), 360.0)
+
+## 밖에서 뱃머리를 그대로 놓을 때 쓴다. 지시도 같이 맞춰야 되돌아가지 않는다.
+func face(bearing: float) -> void:
+	heading = fposmod(bearing, 360.0)
+	ordered_heading = heading
+
 func step(dt: float) -> void:
 	var dt_h := dt * CLOCK * time_scale / 3600.0
 

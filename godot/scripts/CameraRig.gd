@@ -128,7 +128,8 @@ func handle_input(event: InputEvent, in_scene: bool) -> bool:
 
 	elif event is InputEventMouseMotion and _dragging:
 		var mm := event as InputEventMouseMotion
-		yaw = clampf(yaw - mm.relative.x * YAW_PER_PX, -YAW_LIMIT, YAW_LIMIT)
+		# 배를 손으로 돌린다고 생각하면 된다. 왼쪽으로 끌면 배의 오른쪽 면이 돌아온다.
+		yaw = clampf(yaw + mm.relative.x * YAW_PER_PX, -YAW_LIMIT, YAW_LIMIT)
 		pitch = clampf(pitch + mm.relative.y * PITCH_PER_PX, PITCH_MIN, PITCH_MAX)
 		return true
 

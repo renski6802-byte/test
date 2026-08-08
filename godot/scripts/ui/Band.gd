@@ -162,7 +162,7 @@ func add_note(text: String, kind: String) -> void:
 		old.queue_free()
 
 func refresh(v: Voyage) -> void:
-	compass.set_state(v.heading, v.wind_brg)
+	compass.set_state(v.heading, v.wind_brg, v.ordered_heading)
 	_wind.text = "바람 %s" % v.wind_label()
 	var scale := "" if v.time_scale <= 1.0 else "  ×%d" % int(v.time_scale)
 	_speed.text = "%.1f노트 · %s%s" % [v.speed_knots(), v.clock(), scale]

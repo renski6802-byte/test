@@ -54,7 +54,7 @@ func _maybe_capture() -> void:
 
 	var path := get_arg.call("--shot", "shot.png") as String
 	var wait := float(get_arg.call("--wait", "5"))
-	voyage.heading = float(get_arg.call("--heading", str(voyage.heading)))
+	voyage.face(float(get_arg.call("--heading", str(voyage.heading))))
 	voyage.sails = int(get_arg.call("--sails", "2"))
 	rig.yaw = float(get_arg.call("--yaw", "0"))
 	rig.pitch = float(get_arg.call("--pitch", str(rig.pitch)))
@@ -84,7 +84,7 @@ func _capture_reel(path_base: String, frames: int, fps: float) -> void:
 		var t := float(i) / float(frames)
 		# 앞부분은 뱃머리를 돌리고, 뒷부분은 고개를 왼쪽으로 돌려 해안을 본다
 		if t < 0.45:
-			voyage.heading = fposmod(voyage.heading + 22.0 * dt, 360.0)
+			voyage.face(voyage.heading + 22.0 * dt)
 		else:
 			rig.yaw = clampf(rig.yaw - 26.0 * dt, -60.0, 60.0)
 		await get_tree().process_frame
@@ -326,8 +326,10 @@ func _process(delta: float) -> void:
 			turn -= 1.0
 		if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
 			turn += 1.0
+		# 키도 지시를 옮길 뿐이다. 뱃머리는 제 속도로 따라 돈다.
 		if turn != 0.0:
-			voyage.heading = fposmod(voyage.heading + turn * 46.0 * delta, 360.0)
+			voyage.set_course(voyage.ordered_heading + turn * Voyage.TURN_RATE * delta)
+		voyage.steer(delta)
 		voyage.step(delta)
 
 	var fast := clampf((voyage.time_scale - 4.0) / 56.0, 0.0, 1.0)
@@ -489,8 +491,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if (event as InputEventKey).keycode == KEY_SPACE:
 			voyage.surveying = false
 
-## 화면에서 고른 자리 쪽으로 뱃머리를 돌린다. 고개를 돌려둔 만큼을 더해준다.
+## 화면에서 고른 자리 쪽으로 침로를 지시한다. 고개를 돌려둔 만큼을 더해준다.
+## 뱃머리가 그 자리에서 홱 돌지는 않는다 — 지시만 바뀌고 배는 제 속도로 돈다.
 func _steer_towards(screen_pos: Vector2) -> void:
 	var local := screen_pos - _scene_wrap.get_global_rect().position
 	var rel := rig.screen_bearing(local, _scene_wrap.size)
-	voyage.heading = fposmod(voyage.heading + rel, 360.0)
+	voyage.set_course(voyage.heading + rel)
