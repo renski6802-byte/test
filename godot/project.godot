@@ -9,6 +9,11 @@ config/name="대항해 프로토타입"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
 
+[gui]
+
+; 웹 빌드에는 시스템 폰트가 없다. 넣어두지 않으면 한글이 전부 네모로 나온다.
+theme/custom_font="res://fonts/Pretendard-Regular.woff2"
+
 [display]
 
 window/size/viewport_width=1440

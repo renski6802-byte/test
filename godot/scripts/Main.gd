@@ -58,6 +58,11 @@ func _maybe_capture() -> void:
 	rig.distance = float(get_arg.call("--dist", str(rig.distance)))
 	voyage.hours = float(get_arg.call("--hour", str(voyage.hours))) - wait * Voyage.HOURS_PER_SEC
 
+	if args.has("--frames"):
+		await _capture_reel(path, int(get_arg.call("--frames", "60")),
+			float(get_arg.call("--fps", "12")))
+		return
+
 	await get_tree().create_timer(wait).timeout
 	if args.has("--chart"):
 		_toggle_chart()
@@ -66,6 +71,23 @@ func _maybe_capture() -> void:
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(path)
 	print("찍음: ", path)
+	get_tree().quit()
+
+## 조타와 시점 조작을 스스로 하며 연속으로 찍는다. 움직이는 화면을 보여주려는 것.
+func _capture_reel(path_base: String, frames: int, fps: float) -> void:
+	var dt := 1.0 / fps
+	for i in frames:
+		var t := float(i) / float(frames)
+		# 앞부분은 뱃머리를 돌리고, 뒷부분은 고개를 왼쪽으로 돌려 해안을 본다
+		if t < 0.45:
+			voyage.heading = fposmod(voyage.heading + 22.0 * dt, 360.0)
+		else:
+			rig.yaw = clampf(rig.yaw - 26.0 * dt, -60.0, 60.0)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.save_png(path_base % i)
+	print("연속 촬영 끝: ", frames)
 	get_tree().quit()
 
 # ── 화면 ────────────────────────────────────────────────────────
