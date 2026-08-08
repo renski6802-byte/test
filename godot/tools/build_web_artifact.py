@@ -138,25 +138,30 @@ const WORKLET_B64 = "__WORKLET_B64__";
     return;
   }
 
-  // base64 → 바이트. 직접 도는 것보다 data: URL 을 거치는 편이 훨씬 빠르다.
-  async function bytes(b64) {
-    const r = await realFetch("data:application/octet-stream;base64," + b64);
-    return new Uint8Array(await r.arrayBuffer());
+  // base64 → 바이트. data: URL 로 fetch 하는 편이 빠르지만 게시 환경이 그걸 막는다.
+  function bytes(b64) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
   }
   async function unpack(b64) {
-    const raw = await bytes(b64);
+    const raw = bytes(b64);
     const s = new Blob([raw]).stream().pipeThrough(new DecompressionStream("gzip"));
     return new Uint8Array(await new Response(s).arrayBuffer());
   }
+  const breathe = () => new Promise((r) => setTimeout(r, 16));
 
   let wasm, pck;
   try {
     step("엔진을 푸는 중…", 15);
+    await breathe();
     wasm = await unpack(WASM_B64);
     step("프로젝트를 푸는 중…", 60);
+    await breathe();
     pck = await unpack(PCK_B64);
   } catch (e) {
-    fail("페이지 안의 자료를 푸는 데 실패했습니다. " + e);
+    fail("자료를 푸는 단계에서 막혔습니다 — " + (e && e.message ? e.message : e));
     return;
   }
 
@@ -179,10 +184,15 @@ const WORKLET_B64 = "__WORKLET_B64__";
   };
 
   // 오디오 워클릿만은 진짜 URL 을 요구한다. 블롭으로 만들어 끼워 넣는다.
-  const workletSrc = new TextDecoder().decode(await bytes(WORKLET_B64));
-  const workletUrl = URL.createObjectURL(
-    new Blob([workletSrc], { type: "text/javascript" }));
-  if (window.AudioWorklet && AudioWorklet.prototype.addModule) {
+  // 소리는 없어도 게임은 돈다. 블롭 URL 이 막히면 조용히 넘어간다.
+  let workletUrl = null;
+  try {
+    const src = new TextDecoder().decode(bytes(WORKLET_B64));
+    workletUrl = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+  } catch (e) {
+    console.warn("오디오 워클릿을 준비하지 못했습니다:", e);
+  }
+  if (workletUrl && window.AudioWorklet && AudioWorklet.prototype.addModule) {
     const addModule = AudioWorklet.prototype.addModule;
     AudioWorklet.prototype.addModule = function (url) {
       return addModule.call(this, String(url).endsWith(".worklet.js") ? workletUrl : url);
@@ -208,8 +218,11 @@ const WORKLET_B64 = "__WORKLET_B64__";
     boot.hidden = true;
     canvas.focus();
   } catch (e) {
-    fail("엔진이 시작하지 못했습니다. " + e +
-      "\n\n브라우저가 WebAssembly 실행을 막고 있을 수 있습니다.");
+    const detail = e && e.message ? e.message : String(e);
+    fail("엔진을 켜는 단계에서 막혔습니다 — " + detail +
+      (/wasm|WebAssembly|CSP|unsafe/i.test(detail)
+        ? "  게시 환경이 WebAssembly 실행을 막고 있습니다. 데스크톱 빌드로 드리겠습니다."
+        : ""));
   }
 })();
 </script>
