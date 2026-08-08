@@ -206,13 +206,11 @@ func _build_world() -> void:
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	e.ambient_light_sky_contribution = 0.45
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
-	e.ssr_enabled = true
-	e.ssr_max_steps = 32
 	e.glow_enabled = true
 	e.glow_intensity = 0.35
 	e.fog_enabled = true
-	e.fog_density = 0.00006
-	e.fog_aerial_perspective = 0.7
+	e.fog_density = 0.000035
+	e.fog_aerial_perspective = 0.35
 	e.fog_sky_affect = 0.0
 	env.environment = e
 	_env = e
@@ -383,7 +381,7 @@ func _update_sky() -> void:
 	_env.ambient_light_sky_contribution = lerpf(0.18, 0.5, day)
 
 	# 바다의 먼 끝과 안개도 하늘을 따라간다
-	ocean.set_horizon_tint(horizon.lerp(top, 0.25))
+	ocean.set_sky(horizon, top)
 	_env.fog_light_color = horizon
 
 func _update_hud() -> void:

@@ -24,7 +24,7 @@ static func build() -> MeshInstance3D:
 	mi.mesh = st.commit()
 
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color("4c5245")
+	mat.albedo_color = Color("39402f")
 	mat.roughness = 0.94
 	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
