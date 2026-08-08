@@ -21,6 +21,7 @@ var _say_text: Label
 var _notes_box: VBoxContainer
 var _wind: Label
 var _speed: Label
+var _supply: Label
 var _btn_ask: Button
 var _btn_chart: Button
 var _btn_survey: Button
@@ -123,8 +124,11 @@ func _slot_context() -> Control:
 	_wind.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speed = _label("— 노트 · —", 11, Pal.BAND_SOFT)
 	_speed.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_supply = _label("물 — · 식량 —", 10, Pal.BAND_FAINT)
+	_supply.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_wind)
 	box.add_child(_speed)
+	box.add_child(_supply)
 	return box
 
 func _slot_map() -> Control:
@@ -160,12 +164,16 @@ func add_note(text: String, kind: String) -> void:
 func refresh(v: Voyage) -> void:
 	compass.set_state(v.heading, v.wind_brg)
 	_wind.text = "바람 %s" % v.wind_label()
-	_speed.text = "%.1f노트 · %s" % [v.speed_knots(), v.clock()]
+	var scale := "" if v.time_scale <= 1.0 else "  ×%d" % int(v.time_scale)
+	_speed.text = "%.1f노트 · %s%s" % [v.speed_knots(), v.clock(), scale]
 	minimap.queue_redraw()
 
 	var near_ok := v.near_port != null
 	_btn_enter.disabled = not near_ok
 	_btn_survey.button_pressed = v.surveying
+	_supply.text = "물 %d일 · 식량 %d일" % [int(v.water_days), int(v.food_days)]
+	var low := minf(v.water_days, v.food_days) < 10.0
+	_supply.add_theme_color_override("font_color", Pal.VERMILION if low else Pal.BAND_FAINT)
 
 # ── 잔손질 ──────────────────────────────────────────────────────
 func _label(text: String, sz: int, col: Color) -> Label:

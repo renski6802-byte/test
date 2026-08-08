@@ -41,7 +41,7 @@ func _draw() -> void:
 	draw_texture_rect_region(fog.texture, Rect2(Vector2.ZERO, Vector2(s, s)),
 		Rect2(src_origin, Vector2(src_side, src_side)))
 
-	for p in Geo.PORTS:
+	for p in Geo.ports():
 		if not voyage.found.has(p.name):
 			continue
 		draw_circle(to_local.call(p.lon, p.lat), 3.0, Pal.BRASS_LIT)

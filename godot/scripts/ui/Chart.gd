@@ -68,7 +68,7 @@ func _draw() -> void:
 
 	# 한 번 적어 넣은 항구는 종이 위에 남는다 — 안개에 가리지 않는다
 	var font := get_theme_default_font()
-	for p in Geo.PORTS:
+	for p in Geo.ports():
 		if not voyage.found.has(p.name):
 			continue
 		var q: Vector2 = to_local.call(p.lon, p.lat)

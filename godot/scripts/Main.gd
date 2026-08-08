@@ -20,6 +20,7 @@ var _scene_wrap: Control
 var _chart_layer: Control
 var _prompt: Label
 var _camhint: Label
+var _speedplate: Label
 var _surveying: Label
 var _sun: DirectionalLight3D
 var _sky: ProceduralSkyMaterial
@@ -56,7 +57,7 @@ func _maybe_capture() -> void:
 	voyage.sails = int(get_arg.call("--sails", "2"))
 	rig.yaw = float(get_arg.call("--yaw", "0"))
 	rig.distance = float(get_arg.call("--dist", str(rig.distance)))
-	voyage.hours = float(get_arg.call("--hour", str(voyage.hours))) - wait * Voyage.HOURS_PER_SEC
+	voyage.hours = float(get_arg.call("--hour", str(voyage.hours)))
 
 	if args.has("--frames"):
 		await _capture_reel(path, int(get_arg.call("--frames", "60")),
@@ -120,6 +121,12 @@ func _build_layout() -> void:
 	_surveying.offset_top = 12
 	_surveying.visible = false
 	_scene_wrap.add_child(_surveying)
+
+	_speedplate = _plate("", Pal.HUD_GOLD)
+	_speedplate.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_speedplate.offset_top = 44
+	_speedplate.visible = false
+	_scene_wrap.add_child(_speedplate)
 
 	_camhint = _plate("", Pal.HUD_GOLD)
 	_camhint.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
@@ -227,9 +234,43 @@ func _build_world() -> void:
 	sails_node = ship.get_node_or_null("Sails")
 	_viewport.add_child(ship)
 
+	for s in voyage.other_ships:
+		var mark := _distant_sail()
+		mark.position = Geo.to_world(s.lon, s.lat)
+		mark.rotation.y = -deg_to_rad(s.heading)
+		_viewport.add_child(mark)
+
 	rig = CameraRig.new()
 	rig.name = "CameraRig"
 	_viewport.add_child(rig)
+
+## 수평선에 보이는 남의 돛. 가까이 갈 일이 아직 없으니 단순하게 둔다.
+func _distant_sail() -> Node3D:
+	var n := Node3D.new()
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color("e8dfc6")
+	m.roughness = 0.8
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	for spec in [[Vector2(12.0, 9.0), 13.0], [Vector2(9.0, 5.5), 6.5]]:
+		var q := QuadMesh.new()
+		q.size = spec[0]
+		var mi := MeshInstance3D.new()
+		mi.mesh = q
+		mi.position = Vector3(0, spec[1], 0)
+		mi.material_override = m
+		n.add_child(mi)
+	var hull := BoxMesh.new()
+	hull.size = Vector3(6.0, 3.0, 18.0)
+	var hi := MeshInstance3D.new()
+	hi.mesh = hull
+	hi.position = Vector3(0, 1.0, 0)
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color("46351f")
+	hm.roughness = 0.9
+	hi.material_override = hm
+	n.add_child(hi)
+	return n
 
 func _wire() -> void:
 	voyage.noted.connect(func(t: String, k: String): band.add_note(t, k))
@@ -240,12 +281,19 @@ func _wire() -> void:
 
 	band.asked.connect(func(): voyage.ask_crew())
 	band.port_entered.connect(func(): voyage.enter_port())
+	voyage.time_scale_changed.connect(func(_s: float, reason: String):
+		if reason != "":
+			_flash_release(reason))
 	band.chart_toggled.connect(_toggle_chart)
 	band.survey_held.connect(func(down: bool): voyage.surveying = down)
 
 	# 출항 자리도 해도에 남긴다
 	fog.punch(voyage.lon, voyage.lat, voyage.sight_km())
 	chart.add_track(voyage.lon, voyage.lat)
+
+func _flash_release(reason: String) -> void:
+	_speedplate.visible = true
+	_speedplate.text = "배속 해제 — %s" % reason
 
 func _toggle_chart() -> void:
 	_chart_layer.visible = not _chart_layer.visible
@@ -265,6 +313,9 @@ func _process(delta: float) -> void:
 		if turn != 0.0:
 			voyage.heading = fposmod(voyage.heading + turn * 46.0 * delta, 360.0)
 		voyage.step(delta)
+
+	var fast := clampf((voyage.time_scale - 4.0) / 56.0, 0.0, 1.0)
+	ocean.choppiness = lerpf(0.55, 1.75, voyage.sea_state) * lerpf(1.0, 0.28, fast)
 
 	_place_ship()
 	rig.place(ship.global_position, voyage.heading)
@@ -338,6 +389,11 @@ func _update_sky() -> void:
 func _update_hud() -> void:
 	_surveying.visible = voyage.surveying
 
+	_speedplate.visible = voyage.time_scale > 1.0
+	if _speedplate.visible:
+		_speedplate.text = "%d배속 — 하루가 %d초" % [
+			int(voyage.time_scale), int(round(86400.0 / (Voyage.CLOCK * voyage.time_scale)))]
+
 	_camhint.visible = rig.is_off_center()
 	if _camhint.visible:
 		var side := "왼쪽" if rig.yaw < 0.0 else "오른쪽"
@@ -388,6 +444,18 @@ func _unhandled_input(event: InputEvent) -> void:
 				voyage.ask_crew()
 			KEY_C:
 				rig.recenter()
+			KEY_BRACKETLEFT:
+				voyage.cycle_time_scale(-1)
+			KEY_BRACKETRIGHT:
+				voyage.cycle_time_scale(1)
+			KEY_1:
+				voyage.set_time_scale(1.0)
+			KEY_2:
+				voyage.set_time_scale(4.0)
+			KEY_3:
+				voyage.set_time_scale(16.0)
+			KEY_4:
+				voyage.set_time_scale(60.0)
 
 	elif event is InputEventKey and not (event as InputEventKey).pressed:
 		if (event as InputEventKey).keycode == KEY_SPACE:

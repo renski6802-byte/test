@@ -6,36 +6,64 @@ extends RefCounted
 signal noted(text: String, kind: String)      ## 세계가 알려주는 것
 signal spoke(who: String, text: String)       ## 사람이 하는 말
 signal revealed(lon: float, lat: float, radius_km: float)
+signal time_scale_changed(scale: float, reason: String)
 
-const SIGHT_KM := 26.0
-const SURVEY_KM := 72.0
-const ARRIVE_KM := 16.0
-const HOURS_PER_SEC := 0.34     ## 실시간 1초 ≈ 게임 20분
+## 1배속에서 실시간 1초가 게임 몇 초인가.
+## 하루가 29분이라 물살이 정직하게 보인다. 배속을 올리면 하루가 29초까지 줄어든다.
+const CLOCK := 50.0
+const TIME_SCALES := [1.0, 4.0, 16.0, 60.0]
+
 const BASE_KN := 4.2            ## 돛 한 단당. 전개하면 두 배
 
-var lon := -9.50
-var lat := 38.62
-var heading := 175.0            ## 도, 0 = 북
+var lon := -9.52
+var lat := 38.66
+var heading := 190.0            ## 도, 0 = 북
 var sails := 1                  ## 0 정박 / 1 반 / 2 전개
 var wind_brg := 210.0
 var hours := 8.0
 var surveying := false
+var time_scale := 1.0
 
-var found := {}                 ## 해도에 적어 넣은 항구
+var found := {}
 var visited := {}
-var hired := false              ## 마그레브를 아는 항해사를 태웠는가
+var hired := false
 var near_port = null
 var ask_index := 0
 
-var features: Array = []        ## 바다에 흩어진 것들
+var features: Array = []
 var seen_features := {}
+var sails_seen := {}            ## 수평선에서 본 다른 배
+var other_ships: Array = []
+
+var sea_state := 0.3            ## 0 잔잔 ~ 1 폭풍
+var water_days := 40.0
+var food_days := 40.0
 
 var _wind_phase := 0.0
 var _last_ground := -99.0
 var _last_reveal := Vector2(999, 999)
+var _in_storm := false
+var _supply_warned := false
+var _land_in_sight := false
 
 func _init() -> void:
 	_seed_features()
+	_seed_ships()
+
+# ── 눈에 들어오는 거리 ───────────────────────────────────────────
+## 검증용으로 항구를 가깝게 둘 때는 시야도 같이 줄여야 한다.
+## 안 그러면 출항하자마자 온 항구가 다 보인다.
+func sight_base() -> float:
+	return 12.0 if Geo.USE_TEST_PORTS else 26.0
+
+func survey_km() -> float:
+	return sight_base() * 2.8
+
+func arrive_km() -> float:
+	return 3.0 if Geo.USE_TEST_PORTS else 16.0
+
+func sight_km() -> float:
+	return survey_km() if surveying else sight_base()
 
 # ── 바람 ────────────────────────────────────────────────────────
 func wind_rel() -> float:
@@ -56,17 +84,37 @@ func speed_knots() -> float:
 	var s := float(min(sails, 2)) * 0.34 if surveying else float(sails)
 	return BASE_KN * s * wind_mult()
 
-func sight_km() -> float:
-	return SURVEY_KM if surveying else SIGHT_KM
+# ── 배속 ────────────────────────────────────────────────────────
+func set_time_scale(v: float, reason := "") -> void:
+	if is_equal_approx(v, time_scale):
+		return
+	time_scale = v
+	time_scale_changed.emit(v, reason)
+
+func cycle_time_scale(dir: int) -> void:
+	var i := TIME_SCALES.find(time_scale)
+	if i < 0:
+		i = 0
+	set_time_scale(TIME_SCALES[clampi(i + dir, 0, TIME_SCALES.size() - 1)])
+
+## 볼 것이 생기면 배속이 저절로 풀린다. 그래야 배속이 "콘텐츠 건너뛰기"가 아니라
+## "빈 바다 건너뛰기"가 된다.
+func _release(reason: String) -> void:
+	if time_scale <= 1.0:
+		return
+	set_time_scale(1.0, reason)
+	noted.emit("배속을 풀었다 — %s" % reason, "warn")
 
 # ── 진행 ────────────────────────────────────────────────────────
 func step(dt: float) -> void:
-	_wind_phase += dt * 0.05
+	var dt_h := dt * CLOCK * time_scale / 3600.0
+
+	_wind_phase += dt_h * 0.06
 	wind_brg = fposmod(210.0 + sin(_wind_phase) * 55.0 + sin(_wind_phase * 2.3) * 18.0, 360.0)
+	_update_weather(dt_h)
+	_burn_supplies(dt_h)
 
-	var dt_h := dt * HOURS_PER_SEC
 	var km := speed_knots() * 1.852 * dt_h
-
 	if km > 0.0:
 		var nlon := lon + sin(deg_to_rad(heading)) * km / Geo.km_per_deg_lon(lat)
 		var nlat := lat + cos(deg_to_rad(heading)) * km / Geo.KM_LAT
@@ -81,6 +129,7 @@ func step(dt: float) -> void:
 		elif hours - _last_ground > 2.0:
 			_last_ground = hours
 			noted.emit("물이 얕다. 뱃머리를 돌려야 한다.", "warn")
+			_release("얕은 물")
 		lon = clamp(lon, Geo.LON_MIN, Geo.LON_MAX)
 		lat = clamp(lat, Geo.LAT_MIN, Geo.LAT_MAX)
 
@@ -88,6 +137,8 @@ func step(dt: float) -> void:
 	_reveal()
 	_check_ports()
 	_check_features()
+	_check_ships()
+	_check_land()
 
 func _reveal() -> void:
 	var r := sight_km()
@@ -96,27 +147,81 @@ func _reveal() -> void:
 	_last_reveal = Vector2(lon, lat)
 	revealed.emit(lon, lat, r)
 
+# ── 자동 해제 조건 다섯 ──────────────────────────────────────────
+## ① 육지 시인
+func _check_land() -> void:
+	var near := Geo.coast_dist_km(lon, lat) < sight_km() * 1.4
+	if near and not _land_in_sight:
+		_land_in_sight = true
+		noted.emit("수평선에 육지가 걸린다.", "hi")
+		_release("육지가 보인다")
+	elif not near:
+		_land_in_sight = false
+
+## ② 항구 접근  ③ 항구 발견
 func _check_ports() -> void:
 	var best = null
 	var best_d := 1.0e9
-	for p in Geo.PORTS:
+	for p in Geo.ports():
 		var d := Geo.dist_km(lon, lat, p.lon, p.lat)
-		if d < sight_km() + 8.0 and not found.has(p.name):
+		if d < sight_km() + arrive_km() * 0.5 and not found.has(p.name):
 			found[p.name] = true
 			noted.emit("수평선에 %s 보인다. 해도에 적어 넣는다." % Geo.josa(p.name, "이", "가"), "hi")
-		if d < ARRIVE_KM and d < best_d:
+			_release("%s 발견" % p.name)
+		if d < arrive_km() and d < best_d:
 			best_d = d
 			best = p
+	if best != null and near_port == null:
+		_release("항구가 눈앞이다")
 	near_port = best
 
+## ④ 악천후
+func _update_weather(dt_h: float) -> void:
+	var t := hours * 0.03
+	sea_state = clampf(0.42 + sin(t) * 0.33 + sin(t * 2.7 + 1.3) * 0.2, 0.0, 1.0)
+	var storm := sea_state > 0.72
+	if storm and not _in_storm:
+		_in_storm = true
+		noted.emit("바다가 거칠어진다. 물마루가 부서진다.", "warn")
+		_release("날씨가 거칠다")
+	elif not storm and _in_storm and sea_state < 0.62:
+		_in_storm = false
+		noted.emit("파도가 잦아들었다.", "")
+
+## ⑤ 보급 경고
+func _burn_supplies(dt_h: float) -> void:
+	var days := dt_h / 24.0
+	water_days = maxf(0.0, water_days - days)
+	food_days = maxf(0.0, food_days - days)
+	if not _supply_warned and minf(water_days, food_days) < 10.0:
+		_supply_warned = true
+		var what := "물" if water_days <= food_days else "식량"
+		noted.emit("%s이 열흘치도 남지 않았다." % what, "warn")
+		_release("보급이 얼마 없다")
+
+## 다른 배 — 수평선의 돛
+func _check_ships() -> void:
+	for s in other_ships:
+		if sails_seen.has(s.id):
+			continue
+		if Geo.dist_km(lon, lat, s.lon, s.lat) < sight_km():
+			sails_seen[s.id] = true
+			noted.emit("수평선에 돛이 하나 보인다.", "hi")
+			_release("다른 배가 보인다")
+
+# ── 항구 ────────────────────────────────────────────────────────
 func enter_port() -> void:
 	if near_port == null:
 		return
 	var p = near_port
 	sails = 0
+	set_time_scale(1.0)
+	water_days = 40.0
+	food_days = 40.0
+	_supply_warned = false
 	if not visited.has(p.name):
 		visited[p.name] = true
-		noted.emit("%s 입항. 닻을 내린다." % p.name, "hi")
+		noted.emit("%s 입항. 닻을 내리고 물과 식량을 채웠다." % p.name, "hi")
 		if p.get("hires", false) and not hired:
 			hired = true
 			spoke.emit("유수프", "마그레브 사람입니다. 남쪽 물길이라면 제가 압니다. 태워 주시겠습니까.")
@@ -124,12 +229,11 @@ func enter_port() -> void:
 		else:
 			spoke.emit("주앙", "%s입니다. 닻을 내렸습니다." % p.name)
 	else:
-		spoke.emit("주앙", "%s에 다시 들렀습니다." % p.name)
+		spoke.emit("주앙", "%s에 다시 들렀습니다. 물과 식량을 채웠습니다." % p.name)
 
-## 선원에게 묻는다 — 목록이 아니라 대답으로 돌아온다
 func ask_crew() -> void:
 	var left: Array = []
-	for p in Geo.PORTS:
+	for p in Geo.ports():
 		if p.home:
 			continue
 		if p.region == "마그레브" and not hired:
@@ -144,15 +248,17 @@ func ask_crew() -> void:
 	ask_index += 1
 	var dir: String = Geo.COMPASS8[int(round(bearing_to(p.lon, p.lat) / 45.0)) % 8]
 	var d := Geo.dist_km(lon, lat, p.lon, p.lat)
+	# 며칠 걸리는지로 말한다. 이 게임에서 거리의 단위는 날짜다.
+	var days := d / maxf(speed_knots() * 1.852 * 24.0, 1.0)
 	var far := "먼 길입니다"
-	if d < 25.0:
+	if days < 0.25:
 		far = "바로 눈앞입니다"
-	elif d < 90.0:
+	elif days < 0.7:
 		far = "반나절이면 닿습니다"
-	elif d < 200.0:
+	elif days < 1.6:
 		far = "하루는 잡으셔야 합니다"
-	elif d < 400.0:
-		far = "이삼일은 걸립니다"
+	elif days < 4.0:
+		far = "사나흘 걸립니다"
 	var who := "유수프" if p.region == "마그레브" else "주앙"
 	spoke.emit(who, "%s요? %s쪽입니다. %s." % [p.name, dir, far])
 
@@ -200,6 +306,21 @@ func _seed_features() -> void:
 		features.append({
 			"lon": flon, "lat": flat, "kind": k.kind,
 			"msg": k.msg, "id": features.size(),
+		})
+
+func _seed_ships() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5150
+	var guard := 0
+	while other_ships.size() < 10 and guard < 2000:
+		guard += 1
+		var slon := rng.randf_range(Geo.LON_MIN, Geo.LON_MAX)
+		var slat := rng.randf_range(Geo.LAT_MIN, Geo.LAT_MAX)
+		if Geo.on_land(slon, slat):
+			continue
+		other_ships.append({
+			"lon": slon, "lat": slat, "id": other_ships.size(),
+			"heading": rng.randf_range(0.0, 360.0),
 		})
 
 func _check_features() -> void:

@@ -6,8 +6,10 @@ extends RefCounted
 ## 안쪽은 그릴 필요가 없다. 배에서 보이는 건 물가에서 솟아오르는 능선뿐이라,
 ## 해안선을 따라 띠 두 장(물가→능선, 능선→고원)만 세우면 충분하다.
 
-const RIDGE_INLAND := 2600.0     ## 능선까지 안쪽으로 들어가는 거리(m)
-const PLATEAU_INLAND := 30000.0  ## 그 너머 평평하게 이어지는 곳
+## 안쪽으로 들어가는 거리도 지리 거리라 세계 축척을 같이 받아야 한다.
+## 안 그러면 해안선만 줄어들고 땅은 그대로라 하늘을 덮는 판이 된다.
+const RIDGE_INLAND := 2600.0 * Geo.WORLD_SCALE
+const PLATEAU_INLAND := 26000.0 * Geo.WORLD_SCALE
 
 static func build() -> MeshInstance3D:
 	var st := SurfaceTool.new()
