@@ -23,7 +23,12 @@ const PIVOT_LOW := 6.0
 const PIVOT_HIGH := 20.0
 const EYE_CLEARANCE := 2.5      ## 눈이 물에 잠기지 않도록 남기는 높이
 
-const FOLLOW := 9.0             ## 시점이 손을 따라오는 빠르기
+## 마우스 한 픽셀당 몇 도를 도는가. 이게 크면 조금만 움직여도 화면이 홱 돈다.
+const YAW_PER_PX := 0.15
+const PITCH_PER_PX := 0.09
+
+## 시점이 손을 따라오는 빠르기. 낮으면 미끄러지듯 밀리고, 높으면 손에 붙는다.
+const FOLLOW := 12.0
 
 ## 밖에서 만지는 값은 "가고 싶은 곳"이다. 실제 시점은 이걸 뒤쫓는다.
 @export var yaw := 0.0          ## 뱃머리 기준 좌우 각(도)
@@ -37,7 +42,6 @@ var _pitch := 13.0
 var _dist := 68.0
 
 var _dragging := false
-var _drag_travel := 0.0
 
 func _ready() -> void:
 	camera = Camera3D.new()
@@ -109,26 +113,23 @@ func handle_input(event: InputEvent, in_scene: bool) -> bool:
 		if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed and in_scene:
 			distance = clampf(distance * 1.14, DIST_MIN, DIST_MAX)
 			return true
-		if mb.button_index == MOUSE_BUTTON_LEFT:
+		# 시점은 오른쪽 버튼이 맡는다. 왼쪽 버튼 하나가 시점과 조타를 겸하면
+		# 돌리려던 것이 조타가 되고 조타하려던 것이 시점이 되어 헷갈린다.
+		if mb.button_index == MOUSE_BUTTON_RIGHT:
 			if mb.pressed and in_scene:
 				_dragging = true
-				_drag_travel = 0.0
+				return true
 			elif not mb.pressed:
-				var was := _dragging and _drag_travel > 6.0
 				_dragging = false
-				return was      # 끌었으면 조타로 넘기지 않는다
+				return true
 		if mb.button_index == MOUSE_BUTTON_MIDDLE and mb.pressed:
 			recenter()
 			return true
 
 	elif event is InputEventMouseMotion and _dragging:
 		var mm := event as InputEventMouseMotion
-		_drag_travel += mm.relative.length()
-		yaw = clampf(yaw - mm.relative.x * 0.26, -YAW_LIMIT, YAW_LIMIT)
-		pitch = clampf(pitch + mm.relative.y * 0.16, PITCH_MIN, PITCH_MAX)
+		yaw = clampf(yaw - mm.relative.x * YAW_PER_PX, -YAW_LIMIT, YAW_LIMIT)
+		pitch = clampf(pitch + mm.relative.y * PITCH_PER_PX, PITCH_MIN, PITCH_MAX)
 		return true
 
 	return false
-
-func drag_was_a_turn() -> bool:
-	return _drag_travel > 6.0

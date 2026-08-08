@@ -425,7 +425,7 @@ func _update_hud() -> void:
 	_camhint.visible = rig.is_off_center()
 	if _camhint.visible:
 		var side := "왼쪽" if rig.yaw < 0.0 else "오른쪽"
-		_camhint.text = "%s %d° 보는 중 — 가운데 버튼으로 정면" % [side, int(absf(rig.yaw))]
+		_camhint.text = "%s %d° 보는 중 — C 또는 가운데 버튼으로 정면" % [side, int(absf(rig.yaw))]
 
 	var p = voyage.near_port
 	_prompt.visible = p != null and not _chart_layer.visible
@@ -452,9 +452,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
+		# 시점은 오른쪽 버튼이 맡으므로 왼쪽은 조타만 한다
 		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and in_scene:
-			if not rig.drag_was_a_turn():
-				_steer_towards(mb.position)
+			_steer_towards(mb.position)
 
 	elif event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
 		match (event as InputEventKey).keycode:
