@@ -57,7 +57,9 @@ func _maybe_capture() -> void:
 	voyage.heading = float(get_arg.call("--heading", str(voyage.heading)))
 	voyage.sails = int(get_arg.call("--sails", "2"))
 	rig.yaw = float(get_arg.call("--yaw", "0"))
+	rig.pitch = float(get_arg.call("--pitch", str(rig.pitch)))
 	rig.distance = float(get_arg.call("--dist", str(rig.distance)))
+	rig.snap()
 	voyage.hours = float(get_arg.call("--hour", str(voyage.hours)))
 
 	if args.has("--frames"):
@@ -320,7 +322,7 @@ func _process(delta: float) -> void:
 	ocean.choppiness = lerpf(0.55, 1.75, voyage.sea_state) * lerpf(1.0, 0.28, fast)
 
 	_place_ship()
-	rig.place(ship.global_position, voyage.heading)
+	rig.place(ship.global_position, voyage.heading, delta)
 	ocean.follow(ship.global_position)
 	_update_wake()
 	_update_sky()
