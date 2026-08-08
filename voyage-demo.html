@@ -1,0 +1,1079 @@
+<title>항해와 해도 — M0 검증용</title>
+
+<style>
+  /* ─── 밝은 테마: 주간의 양피지 해도 ─────────────────────── */
+  :root {
+    --ground:      #C6BA9A;
+    --surface:     #D6CBAE;
+    --surface-2:   #C0B392;
+    --sunken:      #A3B2AC;   /* 그려 넣은 바다 — 물빛 담채 */
+
+    --ink:         #2A2318;
+    --ink-soft:    #574B39;
+    --ink-faint:   #877A62;
+    --rule:        #A2937350;
+    --rule-solid:  #A79877;
+
+    --brass:       #8E6412;
+    --brass-lit:   #B5821C;
+    --vermilion:   #962F24;
+    --verdigris:   #3F6B5E;
+
+    --land:        #AE9F80;
+    --land-edge:   #63583F;
+    --unmapped:    #DAD0B2;   /* 아직 안 그린 빈 종이 */
+    --hatch:       #8A7B5A2e;
+    --rhumb:       #8878553d;
+    --graticule:   #8B7C5C55;
+
+    --sea-far:     #7C93A0;
+    --sea-near:    #9DB0B6;
+
+    --focus:       #8E6412;
+    --shadow:      0 1px 0 #ffffff2e, 0 2px 10px #2a231814;
+
+    --font-body: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                 "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    --font-latin: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #12151A;
+      --surface:     #1B1F26;
+      --surface-2:   #242932;
+      --sunken:      #24333A;
+
+      --ink:         #D9CEB1;
+      --ink-soft:    #9C927B;
+      --ink-faint:   #6B6353;
+      --rule:        #3B414D;
+      --rule-solid:  #434A57;
+
+      --brass:       #D9A441;
+      --brass-lit:   #F0C570;
+      --vermilion:   #DC6152;
+      --verdigris:   #6FB3A0;
+
+      --land:        #262B34;
+      --land-edge:   #6D7686;
+      --unmapped:    #15191F;
+      --hatch:       #8CA0B82b;
+      --rhumb:       #8f9db81c;
+      --graticule:   #8B99B22b;
+
+      --sea-far:     #10202B;
+      --sea-near:    #1B3543;
+
+      --focus:       #D9A441;
+      --shadow:      0 1px 0 #ffffff08, 0 2px 12px #00000055;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #12151A;
+    --surface:     #1B1F26;
+    --surface-2:   #242932;
+    --sunken:      #24333A;
+
+    --ink:         #D9CEB1;
+    --ink-soft:    #9C927B;
+    --ink-faint:   #6B6353;
+    --rule:        #3B414D;
+    --rule-solid:  #434A57;
+
+    --brass:       #D9A441;
+    --brass-lit:   #F0C570;
+    --vermilion:   #DC6152;
+    --verdigris:   #6FB3A0;
+
+    --land:        #262B34;
+    --land-edge:   #6D7686;
+    --unmapped:    #15191F;
+    --hatch:       #8CA0B82b;
+    --rhumb:       #8f9db81c;
+    --graticule:   #8B99B22b;
+
+    --sea-far:     #10202B;
+    --sea-near:    #1B3543;
+
+    --focus:       #D9A441;
+    --shadow:      0 1px 0 #ffffff08, 0 2px 12px #00000055;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 26px 20px 60px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 5px; }
+  .eyebrow {
+    font-family: var(--font-latin);
+    font-size: 11px; letter-spacing: .34em; text-transform: uppercase;
+    color: var(--brass); margin: 0;
+  }
+  h1 {
+    font-size: clamp(23px, 3.4vw, 30px); line-height: 1.2;
+    letter-spacing: -.018em; font-weight: 700; margin: 0; text-wrap: balance;
+  }
+  .lede { margin: 2px 0 0; max-width: 66ch; color: var(--ink-soft); font-size: 14.5px; }
+
+  .deck { display: grid; grid-template-columns: minmax(0,1fr); gap: 18px; }
+  @media (min-width: 980px) {
+    .deck { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  }
+  .col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--rule-solid);
+    border-radius: 3px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--rule); background: var(--surface-2);
+  }
+  .panel-title { font-size: 12px; font-weight: 700; letter-spacing: .13em; margin: 0; }
+  .panel-note {
+    font-family: var(--font-latin); font-size: 10.5px; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+
+  canvas { display: block; width: 100%; touch-action: none; }
+  #sea   { aspect-ratio: 4 / 3; background: var(--sea-far); cursor: crosshair; outline: none; }
+  #chart { aspect-ratio: 1 / 1; background: var(--unmapped); }
+  #sea:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+  .readouts {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    border-top: 1px solid var(--rule);
+  }
+  .ro { padding: 8px 12px 9px; border-right: 1px solid var(--rule); display: flex; flex-direction: column; gap: 1px; }
+  .ro:last-child { border-right: none; }
+  .ro-label { font-size: 10px; letter-spacing: .1em; color: var(--ink-faint); white-space: nowrap; }
+  .ro-value {
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: 14.5px; font-weight: 600; letter-spacing: -.02em;
+  }
+  .ro-value.good { color: var(--verdigris); }
+  .ro-value.bad  { color: var(--vermilion); }
+
+  .helpbar {
+    padding: 9px 14px; border-top: 1px solid var(--rule);
+    font-size: 12px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 4px 14px;
+  }
+  kbd {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    background: var(--surface-2); border: 1px solid var(--rule-solid);
+    border-bottom-width: 2px; border-radius: 3px; padding: 0 5px; color: var(--ink-soft);
+  }
+
+  /* ─── 선원 ────────────────────────────────────────────── */
+  .crew { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 11px; }
+  .crew-who { display: flex; align-items: baseline; gap: 8px; }
+  .crew-name { font-size: 13px; font-weight: 700; }
+  .crew-role { font-size: 11.5px; color: var(--ink-faint); }
+
+  .bearings { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+  .bearing {
+    display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 10px;
+    padding: 7px 10px; border: 1px solid var(--rule);
+    border-radius: 2px; background: var(--surface-2);
+  }
+  .bearing.found { border-color: var(--verdigris); }
+  .b-name { font-size: 13px; font-weight: 600; }
+  .b-dir  { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--brass); }
+  .b-dist { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint);
+            font-variant-numeric: tabular-nums; }
+  .bearing.found .b-dir { color: var(--verdigris); }
+
+  .crew-empty { font-size: 12.5px; color: var(--ink-faint); margin: 0; }
+
+  button {
+    font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+    color: var(--ink); background: var(--surface-2);
+    border: 1px solid var(--rule-solid); border-radius: 2px;
+    padding: 8px 12px; cursor: pointer;
+    transition: background .12s ease, color .12s ease, border-color .12s ease;
+  }
+  button:hover:not(:disabled) { border-color: var(--brass); color: var(--brass); }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button.primary { background: var(--brass); border-color: var(--brass); color: var(--surface); }
+  button.primary:hover:not(:disabled) { background: var(--brass-lit); border-color: var(--brass-lit); color: var(--surface); }
+  button:disabled { opacity: .38; cursor: not-allowed; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  /* ─── 항해일지 ────────────────────────────────────────── */
+  .log {
+    margin: 0; padding: 10px 14px 12px; max-height: 168px; overflow-y: auto;
+    display: flex; flex-direction: column-reverse; gap: 5px; font-size: 12.5px;
+  }
+  .log-line { display: flex; gap: 9px; align-items: baseline; }
+  .log-t {
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-size: 11px; color: var(--ink-faint); flex: none; min-width: 50px;
+  }
+  .log-msg { color: var(--ink-soft); }
+  .log-line.hi .log-msg   { color: var(--brass); font-weight: 600; }
+  .log-line.warn .log-msg { color: var(--vermilion); font-weight: 600; }
+  .log-line.sign .log-msg { color: var(--verdigris); }
+
+  /* ─── 검증 노트 ───────────────────────────────────────── */
+  .notes { display: grid; gap: 18px; align-items: start; grid-template-columns: minmax(0,1fr); }
+  @media (min-width: 760px) { .notes { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  .note { padding: 15px 17px 17px; display: flex; flex-direction: column; gap: 9px; }
+  .note h2 { font-size: 12px; letter-spacing: .13em; font-weight: 700; margin: 0; color: var(--brass); }
+  .note ol, .note ul { margin: 0; padding-left: 1.15em; display: flex; flex-direction: column; gap: 7px; }
+  .note li { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
+  .note li b { color: var(--ink); font-weight: 600; }
+  .note p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+  .dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 13px; }
+  .dl dt { color: var(--ink); font-weight: 600; }
+  .dl dd { margin: 0; color: var(--ink-soft); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Prototype M0 · Mare Incognitum</p>
+    <h1>항해와 해도 — 빈 종이를 채우는 일</h1>
+    <p class="lede">
+      배를 몰고 다니면 지나간 자리가 해도에 남습니다. 항해장은 자기가 아는 곳의 방향만 일러줍니다.
+      조작은 방향과 속력뿐이고, 나머지는 전부 판단입니다.
+      리스보아에서 출항해 사그레스·파루·카디스를 찾아보세요.
+    </p>
+  </header>
+
+  <div class="deck">
+
+    <!-- ── 좌: 항해 화면 ─────────────────────────────────── -->
+    <div class="col">
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">항해 화면</h2>
+          <span class="panel-note">In Mari</span>
+        </div>
+        <canvas id="sea" tabindex="0"
+                aria-label="바다 위의 배. 방향키로 침로와 속력을 조절합니다."></canvas>
+        <div class="readouts">
+          <div class="ro"><span class="ro-label">경과</span><span class="ro-value" id="ro-time">0일 00시</span></div>
+          <div class="ro"><span class="ro-label">침로</span><span class="ro-value" id="ro-hdg">—</span></div>
+          <div class="ro"><span class="ro-label">속력</span><span class="ro-value" id="ro-spd">—</span></div>
+          <div class="ro"><span class="ro-label">바람</span><span class="ro-value" id="ro-wind">—</span></div>
+          <div class="ro"><span class="ro-label">그린 바다 km²</span><span class="ro-value" id="ro-map">0</span></div>
+        </div>
+        <div class="helpbar">
+          <span><kbd>←</kbd><kbd>→</kbd> 침로</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> 속력</span>
+          <span><kbd>Space</kbd> 망대 관측 (누르는 동안)</span>
+          <span>바다를 클릭해도 그쪽으로 뱃머리를 돌립니다</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">항해일지</h2>
+          <span class="panel-note">Diario</span>
+        </div>
+        <div class="log" id="log" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <!-- ── 우: 해도 + 선원 ───────────────────────────────── -->
+    <div class="col">
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">해도</h2>
+          <span class="panel-note">Carta Nostra</span>
+        </div>
+        <canvas id="chart" aria-label="내가 그린 해도. 지나간 자리만 채워집니다."></canvas>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">선원</h2>
+          <span class="panel-note">Gens Nautica</span>
+        </div>
+        <div class="crew">
+          <div class="crew-who">
+            <span class="crew-name">주앙</span>
+            <span class="crew-role">항해장 · 이베리아 연안</span>
+          </div>
+          <div class="bearings" id="bearings"></div>
+
+          <div id="crew-moor" hidden>
+            <div class="crew-who" style="margin-top:2px">
+              <span class="crew-name">유수프</span>
+              <span class="crew-role">항해사 · 마그레브 연안</span>
+            </div>
+            <div class="bearings" id="bearings-moor" style="margin-top:8px"></div>
+          </div>
+
+          <p class="crew-empty" id="hire-hint">
+            항해장이 아는 것은 이베리아 연안뿐입니다. 더 멀리 가려면 그곳을 아는 사람이 있어야 합니다.
+          </p>
+          <div class="row">
+            <button id="btn-hire" disabled>무어인 항해사 고용</button>
+            <button id="btn-reset">리스보아로</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ── 검증 노트 ───────────────────────────────────────── -->
+  <div class="notes">
+    <section class="panel note">
+      <h2>무엇을 판단해 주십시오</h2>
+      <ol>
+        <li><b>첫 1분이 됩니까.</b> 아무 설명 없이 배를 몰아 사그레스에 닿기까지, 헤매지 않고 갔습니까.</li>
+        <li><b>해도가 채워지는 것이 보상으로 느껴집니까.</b> 이 데모의 전부입니다. 이게 없으면 나머지는 의미가 없습니다.</li>
+        <li><b>망대 관측을 스스로 쓰게 됩니까.</b> 안 눌러도 되게 만들어 뒀습니다. 그런데도 누르게 된다면 좋은 신호이고, 한 번도 안 눌렀다면 보상이 약한 것입니다.</li>
+        <li><b>바람이 판단으로 느껴집니까, 방해로 느껴집니까.</b> 조작을 어렵게 하지 않고 깊이를 넣으려는 장치입니다. 짜증이 나면 실패입니다.</li>
+        <li><b>카디스에서 사람을 고용하는 순간, 세계가 넓어지는 느낌이 납니까.</b></li>
+      </ol>
+    </section>
+
+    <section class="panel note">
+      <h2>구현 범위</h2>
+      <p style="color:var(--ink)">들어 있는 것</p>
+      <dl class="dl">
+        <dt>조작</dt><dd>침로와 속력뿐. 손놀림 과제 없음</dd>
+        <dt>해도</dt><dd>지나간 자리가 영구히 남음. 안 간 곳은 빈 양피지</dd>
+        <dt>망대 관측</dt><dd>속도를 늦추는 대신 훨씬 넓게 밝힘. 쿨다운이 아니라 시간이 비용</dd>
+        <dt>선원</dt><dd>항해장은 이베리아 세 곳만 앎. 카디스에서 고용하면 마그레브가 열림</dd>
+        <dt>바람</dt><dd>순풍·역풍으로 속력이 바뀜. 돌아갈지 질러갈지의 판단</dd>
+        <dt>바다</dt><dd>새떼·표류물·암초. 발견하면 해도에 기록됨</dd>
+      </dl>
+      <p style="margin-top:4px;color:var(--ink)">아직 없는 것</p>
+      <ul>
+        <li>단서 추론으로 찾는 발견물 — 도시는 사람이 알지만 발견물은 아무도 모릅니다. M2의 몫입니다.</li>
+        <li>교역, 보급, 선원 사기, 폭풍 선택지.</li>
+        <li>지난 프로토타입의 육분의 관측 — 손놀림 과제라 들어냈습니다.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ═══ 세계 ════════════════════════════════════════════════ */
+  const KM_LAT = 111.19;
+  const kmLon = (lat) => 111.32 * Math.cos(lat * Math.PI / 180);
+  const B = { lonMin: -11.0, lonMax: -5.2, latMin: 33.4, latMax: 39.6 };
+  const LONSQ = Math.cos(36.5 * Math.PI / 180);
+
+  const IBERIA = [
+    [-8.90,39.60],[-9.10,39.55],[-9.42,39.36],[-9.33,39.20],[-9.20,39.10],
+    [-9.35,38.90],[-9.42,38.78],[-9.38,38.70],[-9.30,38.66],[-9.25,38.55],
+    [-9.00,38.48],[-8.82,38.40],[-8.79,38.00],[-8.85,37.85],[-8.80,37.60],
+    [-8.87,37.40],[-8.95,37.20],[-8.99,37.02],[-8.80,37.02],[-8.66,37.09],
+    [-8.40,37.09],[-8.10,37.06],[-7.90,37.01],[-7.52,37.16],[-7.20,37.19],
+    [-7.00,37.20],[-6.80,37.10],[-6.45,36.94],[-6.35,36.80],[-6.29,36.53],
+    [-6.20,36.42],[-6.05,36.20],[-5.80,36.08],[-5.61,36.01],[-5.44,36.15],
+    [-5.20,36.22],[-5.20,39.60]
+  ];
+  const AFRICA = [
+    [-5.20,35.95],[-5.45,35.88],[-5.75,35.84],[-5.94,35.79],[-6.03,35.55],
+    [-6.15,35.20],[-6.35,34.80],[-6.55,34.50],[-6.75,34.20],[-6.84,34.03],
+    [-7.10,33.80],[-7.45,33.65],[-7.62,33.55],[-8.00,33.40],[-8.30,33.40],
+    [-8.30,33.40],[-5.20,33.40]
+  ];
+
+  const PORTS = [
+    { name:"리스보아", lon:-9.30, lat:38.70, region:"이베리아", home:true },
+    { name:"사그레스", lon:-8.97, lat:37.00, region:"이베리아" },
+    { name:"파루",     lon:-7.93, lat:37.01, region:"이베리아" },
+    { name:"카디스",   lon:-6.29, lat:36.53, region:"이베리아", hires:true },
+    { name:"탕헤르",   lon:-5.85, lat:35.80, region:"마그레브" },
+    { name:"살레",     lon:-6.84, lat:34.03, region:"마그레브" }
+  ];
+
+  const SIGHT_KM = 26;      // 늘 밝혀지는 반경 — 공짜
+  const MAST_KM  = 72;      // 망대에 올라 살필 때
+  const ARRIVE_KM = 16;
+
+  /* ═══ 상태 ════════════════════════════════════════════════ */
+  const S = {
+    lon: -9.55, lat: 38.72,       // 리스보아 앞바다
+    hdg: 200, throttle: 1,
+    windBrg: 210, windPhase: 0,
+    hours: 0,
+    mast: false,
+    revealed: [],                 // {lon,lat,r}
+    found: new Set(),
+    visited: new Set(),
+    hired: false,
+    features: [],
+    seenFeat: new Set(),
+    nearSign: null,
+    lastGround: -99
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const rad = (d) => d * Math.PI / 180;
+
+  function josa(w, a, b) {
+    const c = w.charCodeAt(w.length - 1);
+    const j = (c >= 0xAC00 && c <= 0xD7A3) && (c - 0xAC00) % 28 !== 0;
+    return w + (j ? a : b);
+  }
+
+  const COMPASS8 = ["북","북동","동","남동","남","남서","서","북서"];
+  const COMPASS16 = ["북","북북동","북동","동북동","동","동남동","남동","남남동",
+                     "남","남남서","남서","서남서","서","서북서","북서","북북서"];
+
+  /* ═══ 항해일지 ════════════════════════════════════════════ */
+  const logEl = $("log");
+  function log(msg, kind) {
+    const line = document.createElement("div");
+    line.className = "log-line" + (kind ? " " + kind : "");
+    const d = Math.floor(S.hours / 24), h = Math.floor(S.hours % 24);
+    line.innerHTML = `<span class="log-t">${d}일 ${String(h).padStart(2,"0")}시</span><span class="log-msg"></span>`;
+    line.querySelector(".log-msg").textContent = msg;
+    logEl.appendChild(line);
+    while (logEl.children.length > 70) logEl.removeChild(logEl.firstChild);
+  }
+
+  /* ═══ 바다에 흩어진 것들 ══════════════════════════════════ */
+  function inPoly(lon, lat, p) {
+    let inside = false;
+    for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+      const xi = p[i][0], yi = p[i][1], xj = p[j][0], yj = p[j][1];
+      if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  const onLand = (lon, lat) => inPoly(lon, lat, IBERIA) || inPoly(lon, lat, AFRICA);
+
+  function distKm(aLon, aLat, bLon, bLat) {
+    return Math.hypot((aLat - bLat) * KM_LAT, (aLon - bLon) * kmLon((aLat + bLat) / 2));
+  }
+  function coastDistKm(lon, lat) {
+    let best = 1e9;
+    for (const poly of [IBERIA, AFRICA])
+      for (const [plon, plat] of poly)
+        best = Math.min(best, distKm(lon, lat, plon, plat));
+    return best;
+  }
+
+  const FEAT_KINDS = [
+    { k:"새떼",   near:[0, 90],    msg:"육지 새가 무리지어 난다." },
+    { k:"표류물", near:[0, 200],   msg:"부러진 나뭇가지가 떠다닌다." },
+    { k:"암초",   near:[0, 60],    msg:"물이 하얗게 부서진다. 암초다." },
+    { k:"어장",   near:[20, 140],  msg:"물고기 떼가 수면을 뒤집는다." }
+  ];
+
+  (function seedFeatures() {
+    let s = 77239;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    let guard = 0;
+    while (S.features.length < 46 && guard++ < 4000) {
+      const lon = B.lonMin + rnd() * (B.lonMax - B.lonMin);
+      const lat = B.latMin + rnd() * (B.latMax - B.latMin);
+      if (onLand(lon, lat)) continue;
+      const cd = coastDistKm(lon, lat);
+      const pool = FEAT_KINDS.filter(f => cd >= f.near[0] && cd <= f.near[1]);
+      if (!pool.length) continue;
+      const f = pool[Math.floor(rnd() * pool.length)];
+      S.features.push({ lon, lat, kind: f.k, msg: f.msg, id: S.features.length });
+    }
+  })();
+
+  /* ═══ 시야 기록 ═══════════════════════════════════════════ */
+  function reveal(r) {
+    const last = S.revealed[S.revealed.length - 1];
+    if (last && distKm(last.lon, last.lat, S.lon, S.lat) < r * 0.32 && last.r >= r) return;
+    S.revealed.push({ lon: S.lon, lat: S.lat, r });
+    fogDirty = true;
+  }
+
+  /* ═══ 진행 ════════════════════════════════════════════════ */
+  // 실시간 1초 ≈ 게임 20분. 전속 8.4노트 — 이 시대 배로 무리 없는 속력.
+  const HOURS_PER_SEC = 0.34;
+  const BASE_KN = 4.2;
+
+  function windMult() {
+    const rel = Math.cos(rad(S.hdg - S.windBrg));
+    return 0.45 + 0.75 * (0.5 + 0.5 * rel);
+  }
+  function windLabel() {
+    const rel = Math.cos(rad(S.hdg - S.windBrg));
+    return rel > 0.55 ? "순풍" : rel > -0.2 ? "옆바람" : "역풍";
+  }
+
+  function step(dtSec) {
+    S.windPhase += dtSec * 0.05;
+    S.windBrg = (210 + Math.sin(S.windPhase) * 55 + Math.sin(S.windPhase * 2.3) * 18 + 360) % 360;
+
+    const dtH = dtSec * HOURS_PER_SEC;
+    const throttle = S.mast ? Math.min(S.throttle, 2) * 0.34 : S.throttle;
+    const kn = BASE_KN * throttle * windMult();
+    const km = kn * 1.852 * dtH;
+
+    if (km > 0) {
+      const nLon = S.lon + Math.sin(rad(S.hdg)) * km / kmLon(S.lat);
+      const nLat = S.lat + Math.cos(rad(S.hdg)) * km / KM_LAT;
+      // 해안에 닿아도 멈춰 세우지 않는다. 실수 한 번으로 항해가 끝나면 안 된다.
+      // 갈 수 있는 쪽으로 미끄러지게 두고, 완전히 막혔을 때만 일러준다.
+      if (!onLand(nLon, nLat)) {
+        S.lon = nLon; S.lat = nLat;
+      } else if (!onLand(nLon, S.lat)) {
+        S.lon = nLon;
+      } else if (!onLand(S.lon, nLat)) {
+        S.lat = nLat;
+      } else if (S.hours - S.lastGround > 2) {
+        S.lastGround = S.hours;
+        log("물이 얕다. 뱃머리를 돌려야 한다.", "warn");
+      }
+      S.lon = Math.max(B.lonMin, Math.min(B.lonMax, S.lon));
+      S.lat = Math.max(B.latMin, Math.min(B.latMax, S.lat));
+    }
+    S.hours += dtH;
+
+    reveal(S.mast ? MAST_KM : SIGHT_KM);
+    checkPorts();
+    checkFeatures();
+  }
+
+  function checkPorts() {
+    for (const p of PORTS) {
+      const d = distKm(S.lon, S.lat, p.lon, p.lat);
+      const sight = (S.mast ? MAST_KM : SIGHT_KM) + 8;
+      if (d < sight && !S.found.has(p.name)) {
+        S.found.add(p.name);
+        log(`${p.name} 발견. 해도에 적어 넣는다.`, "hi");
+      }
+      if (d < ARRIVE_KM && !S.visited.has(p.name)) {
+        S.visited.add(p.name);
+        if (!p.home) { S.throttle = 0; log(`${p.name} 입항. 닻을 내린다.`, "hi"); }
+        if (p.hires && !S.hired) {
+          $("btn-hire").disabled = false;
+          $("hire-hint").textContent =
+            "카디스 부두에 마그레브 연안을 아는 항해사가 있습니다. 그를 태우면 더 남쪽을 물어볼 수 있습니다.";
+          log("부두에서 무어인 항해사를 만났다.", "hi");
+        }
+      }
+    }
+  }
+
+  function checkFeatures() {
+    const r = (S.mast ? MAST_KM : SIGHT_KM) * 0.8;
+    let nearest = null, nd = 1e9;
+    for (const f of S.features) {
+      const d = distKm(S.lon, S.lat, f.lon, f.lat);
+      if (d < r) {
+        if (!S.seenFeat.has(f.id)) {
+          S.seenFeat.add(f.id);
+          log(f.msg, "sign");
+        }
+        if (d < nd) { nd = d; nearest = f; }
+      }
+    }
+    S.nearSign = nearest;
+  }
+
+  /* ═══ 항해 화면 ═══════════════════════════════════════════ */
+  const sea = $("sea"), sctx = sea.getContext("2d");
+  let SVW = 0, SVH = 0, SCALE = 1;
+  const VIEW_DEG = 1.35;                       // 화면 세로에 담기는 위도
+
+  const sx = (lon) => SVW / 2 + (lon - S.lon) * LONSQ * SCALE;
+  const sy = (lat) => SVH / 2 - (lat - S.lat) * SCALE;
+
+  function css(v) {
+    return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  }
+
+  function drawSea(t) {
+    const C = sctx;
+    if (!SVW) return;
+    C.clearRect(0, 0, SVW, SVH);
+
+    const g = C.createLinearGradient(0, 0, 0, SVH);
+    g.addColorStop(0, css("--sea-far")); g.addColorStop(1, css("--sea-near"));
+    C.fillStyle = g; C.fillRect(0, 0, SVW, SVH);
+
+    // 물결
+    C.strokeStyle = css("--sea-far"); C.globalAlpha = .5; C.lineWidth = 1;
+    for (let i = 0; i < 26; i++) {
+      const yy = ((i * 47 + t * 9) % (SVH + 40)) - 20;
+      const xx = (i * 173 + Math.sin(t * .6 + i) * 12) % SVW;
+      C.beginPath(); C.moveTo(xx, yy); C.lineTo(xx + 16, yy); C.stroke();
+    }
+    C.globalAlpha = 1;
+
+    // 육지
+    C.fillStyle = css("--land"); C.strokeStyle = css("--land-edge"); C.lineWidth = 2;
+    for (const poly of [IBERIA, AFRICA]) {
+      C.beginPath();
+      poly.forEach(([lo, la], i) => i ? C.lineTo(sx(lo), sy(la)) : C.moveTo(sx(lo), sy(la)));
+      C.closePath(); C.fill(); C.stroke();
+    }
+
+    // 시야 원
+    const rPx = (S.mast ? MAST_KM : SIGHT_KM) / KM_LAT * SCALE;
+    C.strokeStyle = css("--brass"); C.globalAlpha = .30;
+    C.setLineDash([5, 6]); C.lineWidth = 1.2;
+    C.beginPath(); C.arc(SVW / 2, SVH / 2, rPx, 0, Math.PI * 2); C.stroke();
+    C.setLineDash([]); C.globalAlpha = 1;
+
+    // 바다에 있는 것들
+    for (const f of S.features) {
+      const x = sx(f.lon), y = sy(f.lat);
+      if (x < -30 || x > SVW + 30 || y < -30 || y > SVH + 30) continue;
+      drawFeature(C, x, y, f.kind, t);
+    }
+
+    // 항구
+    C.font = "600 12px " + css("--font-body");
+    C.textAlign = "center"; C.textBaseline = "top";
+    for (const p of PORTS) {
+      const x = sx(p.lon), y = sy(p.lat);
+      if (x < -60 || x > SVW + 60 || y < -60 || y > SVH + 60) continue;
+      const known = S.found.has(p.name);
+      C.strokeStyle = known ? css("--brass") : css("--ink-faint");
+      C.fillStyle = known ? css("--brass") : css("--ink-faint");
+      C.lineWidth = 2;
+      C.beginPath(); C.arc(x, y, 6, 0, Math.PI * 2); C.stroke();
+      C.beginPath(); C.arc(x, y, 2.2, 0, Math.PI * 2); C.fill();
+      if (known) C.fillText(p.name, x, y + 10);
+    }
+
+    drawShip(C, SVW / 2, SVH / 2, S.hdg, t);
+    drawWindRose(C, SVW - 52, 52);
+
+    if (S.mast) {
+      C.fillStyle = css("--brass");
+      C.font = "600 12px " + css("--font-body");
+      C.textAlign = "left"; C.textBaseline = "top";
+      C.fillText("망대에서 살피는 중 — 배가 느려집니다", 12, 12);
+    }
+  }
+
+  function drawFeature(C, x, y, kind, t) {
+    C.save();
+    C.translate(x, y);
+    if (kind === "새떼") {
+      C.strokeStyle = "#E8E2D0"; C.globalAlpha = .85; C.lineWidth = 1.4;
+      for (let i = 0; i < 4; i++) {
+        const bx = Math.sin(t * .8 + i * 2) * 7 + i * 6 - 9;
+        const by = Math.cos(t * .9 + i * 1.7) * 4;
+        C.beginPath();
+        C.moveTo(bx - 3.5, by); C.quadraticCurveTo(bx, by - 2.6, bx + 3.5, by);
+        C.stroke();
+      }
+    } else if (kind === "표류물") {
+      C.strokeStyle = "#6B5A3E"; C.lineWidth = 2.4; C.globalAlpha = .9;
+      C.rotate(Math.sin(t * .5) * .25);
+      C.beginPath(); C.moveTo(-6, 0); C.lineTo(6, 0); C.stroke();
+      C.beginPath(); C.moveTo(1, -3); C.lineTo(4, 2); C.stroke();
+    } else if (kind === "암초") {
+      C.strokeStyle = "#EDE6D4"; C.lineWidth = 1.6; C.globalAlpha = .55 + Math.sin(t * 2.2) * .2;
+      for (const rr of [5, 9]) { C.beginPath(); C.arc(0, 0, rr, 0, Math.PI * 2); C.stroke(); }
+      C.fillStyle = "#5A5343"; C.globalAlpha = .9;
+      C.beginPath(); C.moveTo(-3, 2); C.lineTo(0, -4); C.lineTo(3, 2); C.closePath(); C.fill();
+    } else {
+      C.strokeStyle = "#9FD8C4"; C.globalAlpha = .55 + Math.sin(t * 1.6) * .2; C.lineWidth = 1.3;
+      for (let i = 0; i < 3; i++) {
+        C.beginPath(); C.arc(0, 0, 3 + i * 3.4, .6, 2.4); C.stroke();
+      }
+    }
+    C.restore();
+  }
+
+  function drawShip(C, x, y, hdg, t) {
+    C.save();
+    C.translate(x, y);
+
+    // 항적
+    C.rotate(rad(hdg));
+    if (S.throttle > 0) {
+      C.strokeStyle = "#FFFFFF"; C.globalAlpha = .22; C.lineWidth = 2;
+      for (let i = 1; i <= 5; i++) {
+        const d = 12 + i * 9, w = 2 + i * 1.7;
+        C.beginPath();
+        C.moveTo(-w, d + Math.sin(t * 3 + i) * 1.4);
+        C.lineTo(w, d + Math.cos(t * 3 + i) * 1.4);
+        C.stroke();
+      }
+      C.globalAlpha = 1;
+    }
+
+    // 선체
+    C.fillStyle = "#4A3B27"; C.strokeStyle = "#E5DCC4"; C.lineWidth = 1.4;
+    C.beginPath();
+    C.moveTo(0, -15); C.quadraticCurveTo(7.5, -2, 6, 11);
+    C.lineTo(-6, 11); C.quadraticCurveTo(-7.5, -2, 0, -15);
+    C.closePath(); C.fill(); C.stroke();
+
+    // 돛 — 바람 쪽으로 조금 기운다
+    const heel = Math.sin(rad(S.windBrg - hdg)) * 0.32;
+    C.save(); C.rotate(heel);
+    C.fillStyle = "#EFE7D2"; C.strokeStyle = "#8A7B5C"; C.lineWidth = 1;
+    C.beginPath(); C.moveTo(0, -9); C.quadraticCurveTo(6.5, -3.5, 0, 2);
+    C.quadraticCurveTo(-6.5, -3.5, 0, -9); C.closePath(); C.fill(); C.stroke();
+    C.beginPath(); C.moveTo(0, 1); C.quadraticCurveTo(4.6, 4.5, 0, 8.5);
+    C.quadraticCurveTo(-4.6, 4.5, 0, 1); C.closePath(); C.fill(); C.stroke();
+    C.restore();
+    C.restore();
+  }
+
+  function drawWindRose(C, cx, cy) {
+    C.save(); C.translate(cx, cy);
+    C.strokeStyle = css("--ink-faint"); C.globalAlpha = .55; C.lineWidth = 1;
+    C.beginPath(); C.arc(0, 0, 22, 0, Math.PI * 2); C.stroke();
+    C.globalAlpha = 1;
+
+    C.fillStyle = css("--ink-faint");
+    C.font = "9px " + css("--font-mono");
+    C.textAlign = "center"; C.textBaseline = "middle";
+    C.fillText("북", 0, -29);
+
+    C.save(); C.rotate(rad(S.windBrg));
+    C.strokeStyle = css("--verdigris"); C.fillStyle = css("--verdigris"); C.lineWidth = 2;
+    C.beginPath(); C.moveTo(0, -16); C.lineTo(0, 13); C.stroke();
+    C.beginPath(); C.moveTo(0, 18); C.lineTo(-4.5, 10); C.lineTo(4.5, 10); C.closePath(); C.fill();
+    C.restore();
+    C.restore();
+  }
+
+  /* ═══ 해도 ════════════════════════════════════════════════ */
+  const chart = $("chart"), cctx = chart.getContext("2d");
+  const fog = document.createElement("canvas"), fctx = fog.getContext("2d");
+  let CW = 0, CH = 0, PX = 0, PY = 0, PS = 0, fogDirty = true;
+
+  const cx_ = (lon) => PX + (lon - B.lonMin) * LONSQ * PS;
+  const cy_ = (lat) => PY + (B.latMax - lat) * PS;
+
+  function layoutChart() {
+    const r = chart.getBoundingClientRect();
+    CW = r.width; CH = r.height;
+    const gw = (B.lonMax - B.lonMin) * LONSQ, gh = B.latMax - B.latMin;
+    PS = Math.min(CW / gw, CH / gh);
+    PX = (CW - gw * PS) / 2;
+    PY = (CH - gh * PS) / 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    fog.width = Math.round(CW * dpr); fog.height = Math.round(CH * dpr);
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fogDirty = true;
+  }
+
+  function rebuildFog() {
+    fctx.setTransform(1, 0, 0, 1, 0, 0);
+    fctx.clearRect(0, 0, fog.width, fog.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fctx.fillStyle = css("--unmapped");
+    fctx.fillRect(0, 0, CW, CH);
+
+    // 안 그린 곳은 빈 종이여야 하되, 비어 있다는 것이 보여야 한다
+    fctx.strokeStyle = css("--hatch"); fctx.lineWidth = 1;
+    for (let d = -CH; d < CW + CH; d += 7) {
+      fctx.beginPath(); fctx.moveTo(d, 0); fctx.lineTo(d + CH, CH); fctx.stroke();
+    }
+
+    fctx.globalCompositeOperation = "destination-out";
+    for (const r of S.revealed) {
+      const px = cx_(r.lon), py = cy_(r.lat), rp = r.r / KM_LAT * PS;
+      const g = fctx.createRadialGradient(px, py, rp * 0.6, px, py, rp);
+      g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(1, "rgba(0,0,0,0)");
+      fctx.fillStyle = g;
+      fctx.beginPath(); fctx.arc(px, py, rp, 0, Math.PI * 2); fctx.fill();
+    }
+    fctx.globalCompositeOperation = "source-over";
+    fogDirty = false;
+  }
+
+  function drawChart() {
+    const C = cctx;
+    if (!CW) return;
+    C.clearRect(0, 0, CW, CH);
+    C.fillStyle = css("--unmapped"); C.fillRect(0, 0, CW, CH);
+
+    C.save();
+    C.beginPath(); C.rect(PX, PY, CW - PX * 2, CH - PY * 2); C.clip();
+
+    C.fillStyle = css("--sunken");
+    C.fillRect(PX, PY, CW - PX * 2, CH - PY * 2);
+
+    // 항정선망
+    C.strokeStyle = css("--rhumb"); C.lineWidth = 1;
+    for (const rose of [[-8.6, 37.6], [-10.6, 35.2]]) {
+      const rx = cx_(rose[0]), ry = cy_(rose[1]);
+      for (let i = 0; i < 32; i++) {
+        const a = i * Math.PI / 16;
+        C.beginPath(); C.moveTo(rx, ry);
+        C.lineTo(rx + Math.cos(a) * 1800, ry + Math.sin(a) * 1800); C.stroke();
+      }
+    }
+
+    // 경위선
+    C.strokeStyle = css("--graticule"); C.lineWidth = 1;
+    for (let la = 34; la <= 39; la++) {
+      C.beginPath(); C.moveTo(PX, cy_(la)); C.lineTo(CW - PX, cy_(la)); C.stroke();
+    }
+    for (let lo = -11; lo <= -6; lo++) {
+      C.beginPath(); C.moveTo(cx_(lo), PY); C.lineTo(cx_(lo), CH - PY); C.stroke();
+    }
+
+    // 해안
+    C.fillStyle = css("--land"); C.strokeStyle = css("--land-edge"); C.lineWidth = 1.6;
+    for (const poly of [IBERIA, AFRICA]) {
+      C.beginPath();
+      poly.forEach(([lo, la], i) => i ? C.lineTo(cx_(lo), cy_(la)) : C.moveTo(cx_(lo), cy_(la)));
+      C.closePath(); C.fill(); C.stroke();
+    }
+
+    // 바다에서 본 것들
+    for (const f of S.features) {
+      if (!S.seenFeat.has(f.id)) continue;
+      const x = cx_(f.lon), y = cy_(f.lat);
+      C.fillStyle = f.kind === "암초" ? css("--vermilion") : css("--verdigris");
+      if (f.kind === "암초") {
+        C.beginPath(); C.moveTo(x, y - 3.4); C.lineTo(x + 3, y + 2.4); C.lineTo(x - 3, y + 2.4);
+        C.closePath(); C.fill();
+      } else {
+        C.beginPath(); C.arc(x, y, 2.1, 0, Math.PI * 2); C.fill();
+      }
+    }
+
+    // 항적
+    if (S.revealed.length > 1) {
+      C.strokeStyle = css("--brass"); C.globalAlpha = .5; C.lineWidth = 1.2;
+      C.beginPath();
+      S.revealed.forEach((r, i) => i ? C.lineTo(cx_(r.lon), cy_(r.lat)) : C.moveTo(cx_(r.lon), cy_(r.lat)));
+      C.stroke(); C.globalAlpha = 1;
+    }
+
+    C.restore();
+
+    // 안 그린 곳 덮기
+    if (fogDirty) rebuildFog();
+    C.save();
+    C.beginPath(); C.rect(PX, PY, CW - PX * 2, CH - PY * 2); C.clip();
+    C.drawImage(fog, 0, 0, CW, CH);
+
+    // 한 번 적어 넣은 항구는 종이 위에 남는다 — 안개에 가려지지 않는다
+    C.font = "600 10.5px " + css("--font-body");
+    C.textAlign = "center"; C.textBaseline = "top";
+    for (const p of PORTS) {
+      if (!S.found.has(p.name)) continue;
+      const x = cx_(p.lon), y = cy_(p.lat);
+      C.strokeStyle = css("--brass"); C.fillStyle = css("--brass"); C.lineWidth = 1.6;
+      C.beginPath(); C.arc(x, y, 4.5, 0, Math.PI * 2); C.stroke();
+      C.beginPath(); C.arc(x, y, 1.8, 0, Math.PI * 2); C.fill();
+      C.fillText(p.name, x, y + 7);
+    }
+    C.restore();
+
+    // 내 배 — 안개 위에 그린다
+    const shx = cx_(S.lon), shy = cy_(S.lat);
+    C.strokeStyle = css("--vermilion"); C.lineWidth = 1.8;
+    C.beginPath(); C.moveTo(shx - 5, shy); C.lineTo(shx + 5, shy);
+    C.moveTo(shx, shy - 5); C.lineTo(shx, shy + 5); C.stroke();
+    C.save();
+    C.translate(shx, shy); C.rotate(rad(S.hdg));
+    C.fillStyle = css("--vermilion");
+    C.beginPath(); C.moveTo(0, -7); C.lineTo(3.4, 3); C.lineTo(-3.4, 3); C.closePath(); C.fill();
+    C.restore();
+
+    // 도곽선
+    C.strokeStyle = css("--rule-solid"); C.lineWidth = 1;
+    C.strokeRect(PX + .5, PY + .5, CW - PX * 2 - 1, CH - PY * 2 - 1);
+    C.strokeRect(PX - 3.5, PY - 3.5, CW - PX * 2 + 7, CH - PY * 2 + 7);
+  }
+
+  /* ═══ 선원이 일러주는 방향 ════════════════════════════════ */
+  function bearingTo(p) {
+    const dE = (p.lon - S.lon) * kmLon(S.lat);
+    const dN = (p.lat - S.lat) * KM_LAT;
+    return (Math.atan2(dE, dN) * 180 / Math.PI + 360) % 360;
+  }
+  function roughDist(km) {
+    if (km < 25)  return "눈앞";
+    if (km < 90)  return "반나절";
+    if (km < 200) return "하루";
+    if (km < 400) return "이삼일";
+    return "먼 길";
+  }
+
+  function renderBearings() {
+    for (const [elId, region] of [["bearings", "이베리아"], ["bearings-moor", "마그레브"]]) {
+      const box = $(elId);
+      box.innerHTML = "";
+      for (const p of PORTS) {
+        if (p.region !== region || p.home) continue;
+        if (region === "마그레브" && !S.hired) continue;
+        const d = distKm(S.lon, S.lat, p.lon, p.lat);
+        const dir = COMPASS8[Math.round(bearingTo(p) / 45) % 8];
+        const row = document.createElement("div");
+        row.className = "bearing" + (S.found.has(p.name) ? " found" : "");
+        row.innerHTML = `<span class="b-name"></span><span class="b-dir"></span><span class="b-dist"></span>`;
+        row.querySelector(".b-name").textContent = p.name;
+        row.querySelector(".b-dir").textContent = S.visited.has(p.name) ? "다녀옴" : dir + "쪽";
+        row.querySelector(".b-dist").textContent = roughDist(d);
+        box.appendChild(row);
+      }
+    }
+    $("crew-moor").hidden = !S.hired;
+  }
+
+  /* ═══ 판독 ════════════════════════════════════════════════ */
+  // 해도 전체의 몇 %인지는 늘 초라하게 보인다. 그린 면적 자체를 보여준다.
+  const REGION_KM2 = (B.lonMax - B.lonMin) * kmLon((B.latMin + B.latMax) / 2)
+                   * (B.latMax - B.latMin) * KM_LAT;
+
+  function mappedKm2() {
+    let hit = 0, total = 0;
+    for (let i = 0; i <= 24; i++) for (let j = 0; j <= 24; j++) {
+      const lon = B.lonMin + (B.lonMax - B.lonMin) * i / 24;
+      const lat = B.latMin + (B.latMax - B.latMin) * j / 24;
+      total++;
+      for (const r of S.revealed) {
+        if (distKm(lon, lat, r.lon, r.lat) < r.r) { hit++; break; }
+      }
+    }
+    return Math.round(hit / total * REGION_KM2 / 100) * 100;
+  }
+
+  let pctCache = 0, pctTimer = 0;
+  function updateReadouts(dt) {
+    $("ro-time").textContent = `${Math.floor(S.hours/24)}일 ${String(Math.floor(S.hours%24)).padStart(2,"0")}시`;
+    $("ro-hdg").textContent = `${Math.round(S.hdg)}° ${COMPASS16[Math.round(S.hdg/22.5)%16]}`;
+    const kn = BASE_KN * (S.mast ? Math.min(S.throttle,2)*0.34 : S.throttle) * windMult();
+    $("ro-spd").textContent = kn.toFixed(1) + "노트";
+    const wl = windLabel();
+    const wEl = $("ro-wind");
+    wEl.textContent = wl;
+    wEl.className = "ro-value " + (wl === "순풍" ? "good" : wl === "역풍" ? "bad" : "");
+
+    pctTimer -= dt;
+    if (pctTimer <= 0) { pctCache = mappedKm2(); pctTimer = 0.5; }
+    $("ro-map").textContent = pctCache.toLocaleString("ko-KR");
+  }
+
+  /* ═══ 조작 ════════════════════════════════════════════════ */
+  const keys = new Set();
+  const TRACKED = new Set(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","a","d","w","s"," "]);
+
+  addEventListener("keydown", (e) => {
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (!TRACKED.has(k)) return;
+    e.preventDefault();
+    if (keys.has(k)) return;
+    keys.add(k);
+    if (k === "ArrowUp" || k === "w") S.throttle = Math.min(2, S.throttle + 1);
+    if (k === "ArrowDown" || k === "s") S.throttle = Math.max(0, S.throttle - 1);
+    if (k === " ") S.mast = true;
+  });
+  addEventListener("keyup", (e) => {
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (!TRACKED.has(k)) return;
+    keys.delete(k);
+    if (k === " ") S.mast = false;
+  });
+  addEventListener("blur", () => { keys.clear(); S.mast = false; });
+
+  sea.addEventListener("pointerdown", (e) => {
+    sea.focus();
+    const r = sea.getBoundingClientRect();
+    const dx = (e.clientX - r.left) - SVW / 2;
+    const dy = (e.clientY - r.top) - SVH / 2;
+    if (Math.hypot(dx, dy) < 14) return;
+    S.hdg = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+  });
+
+  $("btn-hire").addEventListener("click", () => {
+    S.hired = true;
+    $("btn-hire").disabled = true;
+    $("hire-hint").textContent = "유수프가 배에 올랐습니다. 이제 마그레브 연안을 물어볼 수 있습니다.";
+    log("유수프를 태웠다. 남쪽 연안이 열렸다.", "hi");
+    renderBearings();
+  });
+
+  $("btn-reset").addEventListener("click", () => {
+    Object.assign(S, {
+      lon: -9.55, lat: 38.72, hdg: 200, throttle: 1,
+      windBrg: 210, windPhase: 0, hours: 0, mast: false,
+      revealed: [], found: new Set(), visited: new Set(),
+      hired: false, seenFeat: new Set(), nearSign: null, lastGround: -99
+    });
+    $("btn-hire").disabled = true;
+    $("hire-hint").textContent =
+      "항해장이 아는 것은 이베리아 연안뿐입니다. 더 멀리 가려면 그곳을 아는 사람이 있어야 합니다.";
+    logEl.innerHTML = "";
+    fogDirty = true;
+    renderBearings();
+    log("리스보아 출항. 항해장이 아는 곳은 세 군데뿐이다.");
+  });
+
+  /* ═══ 순환 ════════════════════════════════════════════════ */
+  let last = performance.now(), bearTimer = 0;
+
+  function frame(now) {
+    // rAF의 타임스탬프는 프레임 시작 시각이라 최초 한 번 last보다 이를 수 있다.
+    // 그대로 두면 경과 시간이 음수가 되어 일지에 "-1일 -1시"가 찍힌다.
+    const dt = Math.max(0, Math.min(0.08, (now - last) / 1000));
+    last = now;
+
+    const turn = (keys.has("ArrowLeft") || keys.has("a") ? -1 : 0) +
+                 (keys.has("ArrowRight") || keys.has("d") ? 1 : 0);
+    if (turn) S.hdg = (S.hdg + turn * 52 * dt + 360) % 360;
+
+    step(dt);
+
+    drawSea(now / 1000);
+    drawChart();
+    updateReadouts(dt);
+
+    bearTimer -= dt;
+    if (bearTimer <= 0) { renderBearings(); bearTimer = 0.35; }
+
+    requestAnimationFrame(frame);
+  }
+
+  function fit(cv) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const r = cv.getBoundingClientRect();
+    if (!r.width) return false;
+    cv.width = Math.round(r.width * dpr);
+    cv.height = Math.round(r.height * dpr);
+    cv.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+    return true;
+  }
+  function resize() {
+    if (fit(sea)) { const r = sea.getBoundingClientRect(); SVW = r.width; SVH = r.height; SCALE = SVH / VIEW_DEG; }
+    if (fit(chart)) layoutChart();
+  }
+
+  new ResizeObserver(resize).observe(sea);
+  new ResizeObserver(resize).observe(chart);
+  addEventListener("resize", resize);
+
+  resize();
+  renderBearings();
+  log("리스보아 출항. 항해장이 아는 곳은 세 군데뿐이다.");
+  requestAnimationFrame(frame);
+})();
+</script>
