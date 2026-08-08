@@ -82,7 +82,7 @@ TEMPLATE = r"""<title>대항해 프로토타입 — 브라우저에서 바로</t
   </p>
 
   <div class="frame">
-    <canvas id="canvas" tabindex="0"></canvas>
+    <canvas id="canvas" width="1440" height="900" tabindex="0"></canvas>
     <div class="boot" id="boot">
       <div id="boot-msg">엔진을 푸는 중…</div>
       <div class="bar"><i id="boot-bar"></i></div>
@@ -199,13 +199,18 @@ const WORKLET_B64 = "__WORKLET_B64__";
     };
   }
 
+  // 페이지를 스크롤하려다 캔버스 위에 있으면 카메라가 확 당겨진다. 캔버스 안에서만 먹게 한다.
+  canvas.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
+
   step("엔진을 켜는 중…", 80);
   try {
     const engine = new Engine({
       canvas: canvas,
       executable: "index",
       mainPack: "index.pck",
-      canvasResizePolicy: 2,
+      // 0 = 캔버스 크기를 건드리지 않는다. 데스크톱과 같은 1440x900 으로 그리고
+      // 화면에 맞추는 일은 CSS 가 한다. 브라우저가 크기를 바꾸면 배치가 어긋난다.
+      canvasResizePolicy: 0,
       focusCanvas: true,
       args: [],
       ensureCrossOriginIsolationHeaders: false,
