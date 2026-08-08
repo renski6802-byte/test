@@ -1,0 +1,21 @@
+; 대항해 프로토타입 — Godot 4.3
+; 에디터에서 이 폴더를 열면 됩니다.
+
+config_version=5
+
+[application]
+
+config/name="대항해 프로토타입"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1440
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
+environment/defaults/default_clear_color=Color(0.043, 0.086, 0.133, 1)

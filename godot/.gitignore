@@ -1,0 +1,5 @@
+# Godot 4 가 import 할 때 만드는 캐시. 사람이 손댈 것도, 공유할 것도 아니다.
+.godot/
+# 내보낸 빌드
+build/
+export_presets.cfg
