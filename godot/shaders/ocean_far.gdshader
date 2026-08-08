@@ -74,7 +74,7 @@ void fragment() {
 	// near 와 똑같이. 멀수록 물결이 잘게 흩어져 거울 노릇을 못 하므로 반사를 누른다.
 	float grazing = clamp(dist / 1300.0, 0.0, 1.0);
 	float f = clamp(dot(nv, view_dir), 0.0, 1.0);
-	float fres = (0.02 + 0.98 * pow(1.0 - f, 5.0)) * mix(1.0, 0.34, grazing);
+	float fres = (0.02 + 0.98 * pow(1.0 - f, 5.0)) * mix(1.0, 0.75, grazing);
 
 	vec3 refl_dir = reflect(-view_dir, nv);
 	vec3 world_refl = (INV_VIEW_MATRIX * vec4(refl_dir, 0.0)).xyz;
@@ -82,9 +82,13 @@ void fragment() {
 
 	vec3 body = mix(deep_color, shallow_color, clamp(1.0 - f * 0.85, 0.0, 1.0));
 
-	// 수평선을 하늘로 녹이는 일은 환경 안개가 맡는다. 여기서 또 섞으면 두 번 밝아진다.
-	ALBEDO = mix(body, sky, fres);
-	ROUGHNESS = mix(0.20, 0.48, grazing);
+	// near 와 같이 재질과 비친 하늘을 나눈다. 비친 하늘은 이미 빛이라
+	// 다시 햇빛을 받으면 안 된다. 수평선을 하늘로 녹이는 일은 환경 안개가 맡는다.
+	ALBEDO = body;
+	EMISSION = sky * fres;
+	ROUGHNESS = mix(0.20, 0.55, grazing);
 	METALLIC = 0.0;
-	SPECULAR = 0.38;
+	// 가까운 물결은 거울처럼 해를 튕기지만, 먼 물결은 화면 한 점에 수천 개가
+	// 겹쳐 서로 상쇄된다. 이걸 안 줄이면 해가 낮을 때 수평선 전체가 반짝임 길이 된다.
+	SPECULAR = 0.0;   // 먼바다는 늘 상쇄 거리 밖이다
 }

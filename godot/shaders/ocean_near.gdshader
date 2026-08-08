@@ -136,9 +136,15 @@ void fragment() {
 	// ── 프레넬. 내려다보면 물속이 보이고, 스칠수록 하늘을 비춘다.
 	// 멀수록 물결이 잘게 흩어져 거울 노릇을 못 하므로 반사를 눌러준다.
 	// 이걸 안 눌러서 수평선이 하늘보다 밝아졌었다.
+	// 거리에 따라 두 가지가 따로 사그라든다.
+	//  - 반짝임(glint)은 금방 죽는다. 멀면 화면 한 점에 물결 수천 개가 겹쳐
+	//    서로 상쇄되기 때문이다. 이게 안 죽어서 중거리에 흰 띠가 생겼다.
+	//  - 하늘을 비추는 힘(grazing)은 멀리까지 살아 있어야 한다. 수평선의 바다는
+	//    실제로 하늘의 절반쯤 밝다. 이걸 같이 죽였더니 수평선만 새까매졌다.
 	float grazing = clamp(dist / 1300.0, 0.0, 1.0);
+	float glint_fade = clamp(dist / 450.0, 0.0, 1.0);
 	float f = clamp(dot(nv, view_dir), 0.0, 1.0);
-	float fres = (0.02 + 0.98 * pow(1.0 - f, 5.0)) * mix(1.0, 0.34, grazing);
+	float fres = (0.02 + 0.98 * pow(1.0 - f, 5.0)) * mix(1.0, 0.75, grazing);
 
 	vec3 refl_dir = reflect(-view_dir, nv);
 	vec3 world_refl = (INV_VIEW_MATRIX * vec4(refl_dir, 0.0)).xyz;
@@ -146,10 +152,8 @@ void fragment() {
 	vec3 sky = mix(sky_horizon, sky_zenith, clamp(world_refl.y * 1.6, 0.0, 1.0)) * 0.70;
 
 	vec3 body = mix(deep_color, shallow_color, clamp(1.0 - f * 0.85, 0.0, 1.0));
-	vec3 col = mix(body, sky, fres);
-
 	// 물마루가 얇아지면 빛이 통과해 속이 비친다
-	col += sss_color * crest * 0.5 * f2;
+	body += sss_color * crest * 0.5 * f2;
 
 	// ── 뱃머리가 가르는 물살. 켈빈 항적처럼 뒤로 벌어지는 V.
 	vec2 rel = world_pos.xz - ship_pos;
@@ -174,13 +178,22 @@ void fragment() {
 	float patch = vnoise(world_pos.xz * 0.7);
 	float foam = crest * smoothstep(0.25, 0.8, patch + crest * 0.35);
 	foam = clamp(foam + wake, 0.0, 0.75);
-	col = mix(col, foam_color, foam);
 
-	ALBEDO = col;
+	// ── 물빛은 두 갈래다.
+	//
+	// 물속에서 나오는 빛과 거품은 재질이라 햇빛을 받아야 하지만(ALBEDO),
+	// 표면에 비친 하늘은 이미 빛 그 자체라 다시 비추면 안 된다(EMISSION).
+	// 비친 하늘까지 ALBEDO 에 넣고 있었다. 그래서 해와 하늘빛을 한 번 더 받아
+	// 두 번 밝아졌고, 프레넬이 큰 먼바다일수록 그 배수가 커졌다.
+	// 먼바다가 하늘만큼 밝았던 가장 큰 이유가 이것이다.
+	ALBEDO = mix(body, foam_color, foam);
+	EMISSION = sky * fres * (1.0 - foam);
 
 	// 가까이는 거울처럼, 멀리는 잘게 흩어지게. 이 경사가 흰 수평선을 막는다.
 	// 너무 매끈하면 해가 물결마다 통째로 비쳐 하얀 레이스가 깔린다.
-	ROUGHNESS = mix(mix(0.20, 0.62, foam), 0.48, grazing);
+	ROUGHNESS = mix(mix(0.20, 0.62, foam), 0.55, glint_fade);
 	METALLIC = 0.0;
-	SPECULAR = 0.38;
+	// 가까운 물결은 거울처럼 해를 튕기지만, 먼 물결은 화면 한 점에 수천 개가
+	// 겹쳐 서로 상쇄된다. 이걸 안 줄이면 해가 낮을 때 수평선 전체가 반짝임 길이 된다.
+	SPECULAR = mix(0.42, 0.0, glint_fade);
 }

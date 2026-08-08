@@ -222,10 +222,16 @@ func _build_world() -> void:
 	e.ambient_light_sky_contribution = 0.45
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.glow_enabled = true
-	e.glow_intensity = 0.35
+	# 번짐이 세면 가까운 물의 반짝임이 화면 전체로 퍼져 수평선까지 들어올린다.
+	# 문턱을 올려 정말 밝은 것만 번지게 한다.
+	e.glow_intensity = 0.16
+	e.glow_hdr_threshold = 1.35
 	e.fog_enabled = true
-	e.fog_density = 0.000035
-	e.fog_aerial_perspective = 0.35
+	# 안개가 짙으면 먼바다가 통째로 하늘색이 된다. 16km 앞이 43% 하늘색이었다.
+	e.fog_density = 0.000012
+	# 안개가 픽셀 방향의 하늘색을 따라간다. 수평선 아래를 보는 물에게 그 하늘은
+	# 수평선 아래쪽 색이라 어둡다. 그래서 먼바다가 하늘로 녹지 않고 물빛으로 물러난다.
+	e.fog_aerial_perspective = 0.55
 	e.fog_sky_affect = 0.0
 	env.environment = e
 	_env = e
@@ -402,19 +408,26 @@ func _update_sky() -> void:
 	_sky.sky_top_color = top
 	_sky.sky_horizon_color = horizon
 	_sky.ground_bottom_color = top.darkened(0.4)
-	_sky.ground_horizon_color = horizon.darkened(0.25)
+	# 이 색이 곧 먼바다가 물러날 색이다 (fog_aerial_perspective)
+	_sky.ground_horizon_color = horizon.darkened(0.62)
 	var moon := Color(0.62, 0.72, 1.0)
 	_sun.light_color = moon.lerp(Color(1.0, 0.95, 0.88), day).lerp(Color(1.0, 0.72, 0.48), dusk * 0.8)
 	_sun.light_energy = lerpf(0.30, 1.25, day)
+
+	# 해가 낮으면 반짝임 길이 수평선까지 길게 누워 화면을 태운다. 새벽에 가까운
+	# 바다가 하늘만큼 밝아졌던 원인이다. 고도가 낮을수록 반사광만 눌러준다.
+	_sun.light_specular = lerpf(0.10, 1.0, clampf(lit_elev / 55.0, 0.0, 1.0))
 
 	# 밤에는 하늘이 어두워 하늘빛만으로는 아무것도 안 보인다. 바닥을 깔아준다.
 	_env.ambient_light_color = Color(0.17, 0.23, 0.36)
 	_env.ambient_light_energy = lerpf(0.75, 1.0, day)
 	_env.ambient_light_sky_contribution = lerpf(0.18, 0.5, day)
 
-	# 바다의 먼 끝과 안개도 하늘을 따라간다
+	# 바다의 먼 끝과 안개도 하늘을 따라간다.
+	# 다만 안개를 하늘색 그대로 쓰면 먼바다가 수평선에서 하늘에 녹아 사라진다.
+	# 실제로는 멀어져도 물빛이 남는다. 그래서 물빛 쪽으로 조금 당겨둔다.
 	ocean.set_sky(horizon, top)
-	_env.fog_light_color = horizon
+	_env.fog_light_color = horizon.lerp(Color(0.10, 0.20, 0.30), 0.52)
 
 func _update_hud() -> void:
 	_surveying.visible = voyage.surveying
