@@ -96,15 +96,22 @@ func _capture_reel(path_base: String, frames: int, fps: float) -> void:
 
 # ── 화면 ────────────────────────────────────────────────────────
 func _build_layout() -> void:
+	# Control 은 기본이 MOUSE_FILTER_STOP 이라 그냥 두면 화면을 덮은 컨트롤이
+	# 마우스를 전부 먹는다. 시점 조작은 _unhandled_input 에서 받으므로,
+	# 바다 위를 덮는 것들은 모두 마우스를 흘려보내야 한다.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 	var col := VBoxContainer.new()
 	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	col.add_theme_constant_override("separation", 0)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(col)
 
 	_scene_wrap = Control.new()
 	_scene_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scene_wrap.size_flags_stretch_ratio = SCENE_RATIO
 	_scene_wrap.clip_contents = true
+	_scene_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_scene_wrap)
 
 	var vpc := SubViewportContainer.new()
@@ -153,11 +160,14 @@ func _build_layout() -> void:
 	_chart_layer = Control.new()
 	_chart_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_chart_layer.visible = false
+	# 아무 곳이나 눌러 닫는 것도 _unhandled_input 이 받는다
+	_chart_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_chart_layer)
 
 	var dim := ColorRect.new()
 	dim.color = Color(0.043, 0.086, 0.133, 0.94)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chart_layer.add_child(dim)
 
 	chart = ChartView.new()
@@ -168,6 +178,7 @@ func _build_layout() -> void:
 	chart.offset_bottom = -46
 	chart.fog = fog
 	chart.voyage = voyage
+	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chart_layer.add_child(chart)
 
 	var hint := Label.new()
@@ -176,6 +187,7 @@ func _build_layout() -> void:
 	hint.add_theme_color_override("font_color", Color(Pal.HUD_INK, 0.65))
 	hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	hint.offset_bottom = -16
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chart_layer.add_child(hint)
 
 	band.minimap.fog = fog
