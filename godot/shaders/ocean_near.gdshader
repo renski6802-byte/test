@@ -3,42 +3,45 @@ render_mode specular_schlick_ggx;
 
 // 배 주위의 바다.
 //
-// 바다를 바다로 보이게 하는 건 파도의 크기가 아니라 겹의 수다.
-// 긴 너울 위에 중간 물결이, 그 위에 잔결이 얹혀야 물처럼 읽힌다.
-// 그래서 형태는 거스너 여섯 겹으로 만들고, 그보다 작은 결은 법선만 흔들어 얹는다.
+// 형태는 거스너 네 겹으로만 만든다. 판의 한 칸(약 8m)보다 짧은 파도를 꼭짓점으로
+// 만들면 격자에 걸려 규칙적인 줄무늬가 생기기 때문이다. 그보다 잔 결은 전부
+// 노멀맵이 맡는다.
 //
-// 여기 여섯 겹은 scripts/Ocean.gd 의 WAVES 와 반드시 같아야 한다.
+// 여기 네 겹은 scripts/Ocean.gd 의 WAVES 와 반드시 같아야 한다.
 // 배가 파도를 타려면 CPU 가 같은 높이를 계산할 수 있어야 하기 때문이다.
 
-uniform vec3 deep_color : source_color = vec3(0.008, 0.032, 0.055);
-uniform vec3 shallow_color : source_color = vec3(0.045, 0.135, 0.160);
+uniform vec3 deep_color : source_color = vec3(0.005, 0.021, 0.040);
+uniform vec3 shallow_color : source_color = vec3(0.028, 0.098, 0.126);
 uniform vec3 sky_horizon : source_color = vec3(0.62, 0.74, 0.84);
 uniform vec3 sky_zenith : source_color = vec3(0.24, 0.45, 0.72);
-uniform vec3 foam_color : source_color = vec3(0.90, 0.94, 0.95);
+uniform vec3 foam_color : source_color = vec3(0.92, 0.95, 0.96);
 uniform vec3 sss_color : source_color = vec3(0.09, 0.36, 0.32);
 uniform float choppiness = 1.0;
-uniform float half_extent = 3000.0;
-uniform float fade_dist = 30000.0;
+uniform float half_extent = 1000.0;
 uniform sampler2D ripple_normals : hint_normal, filter_linear_mipmap, repeat_enable;
+
+// 뱃머리가 가르는 물살
+uniform vec2 ship_pos = vec2(0.0);
+uniform vec2 ship_dir = vec2(0.0, -1.0);
+uniform float ship_speed01 = 0.0;
 
 varying vec3 world_pos;
 varying vec3 wave_normal;
 varying float crest;
 
-// ── 형태를 만드는 여섯 겹 ────────────────────────────────────────
-// dir, 파장(m), 진폭(m), 뾰족함
-const vec2 DIRS[6] = { vec2(1.00, 0.15), vec2(0.85, 0.50), vec2(-0.50, 1.00),
-					   vec2(0.30, -1.00), vec2(-1.00, -0.35), vec2(0.60, 0.80) };
-const float LENS[6] = { 140.0, 78.0, 44.0, 25.0, 13.0, 7.0 };
-const float AMPS[6] = { 0.90, 0.55, 0.32, 0.18, 0.090, 0.045 };
-const float QS[6]   = { 0.35, 0.40, 0.45, 0.50, 0.50, 0.50 };
+// dir, 파장(m), 진폭(m), 뾰족함 — 방향을 넓게 벌려야 반짝임이 한 줄로 서지 않는다
+const vec2 DIRS[4] = { vec2(1.00, 0.10), vec2(0.20, 1.00),
+					   vec2(-0.90, 0.55), vec2(0.55, -0.95) };
+const float LENS[4] = { 143.0, 81.0, 47.0, 27.0 };
+const float AMPS[4] = { 0.92, 0.56, 0.30, 0.16 };
+const float QS[4]   = { 0.34, 0.40, 0.45, 0.48 };
 
 void gerstner(vec2 p, float t, float gain, out vec3 disp, out vec3 nrm, out float steep) {
 	disp = vec3(0.0);
 	vec3 n = vec3(0.0, 1.0, 0.0);
 	steep = 0.0;
 
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < 4; i++) {
 		vec2 d = normalize(DIRS[i]);
 		float k = 6.2831853 / LENS[i];
 		float a = AMPS[i] * choppiness * gain;
@@ -50,7 +53,6 @@ void gerstner(vec2 p, float t, float gain, out vec3 disp, out vec3 nrm, out floa
 		disp.xz += d * (q * a * c);
 		disp.y += a * s;
 
-		// 거스너의 해석적 법선. 유한차분보다 훨씬 싸다.
 		float wa = k * a;
 		n.x -= d.x * wa * c;
 		n.z -= d.y * wa * c;
@@ -61,15 +63,33 @@ void gerstner(vec2 p, float t, float gain, out vec3 disp, out vec3 nrm, out floa
 	nrm = normalize(n);
 }
 
+vec2 rot2(vec2 p, float a) {
+	float c = cos(a);
+	float s = sin(a);
+	return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+}
+
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// 칸마다 값을 하나씩 뽑아 쓰면 바둑판이 보인다. 부드럽게 이어 붙인다.
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
 void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 
-	// 판 가장자리에서 파도를 접는다. 먼바다 판과 이어붙는 자리라 어긋나면 안 된다.
-	float edge = 1.0 - smoothstep(half_extent * 0.70, half_extent * 0.97,
+	// 먼바다 판과 이어붙는 자리라 가장자리에서 파도를 길게 접는다
+	float edge = 1.0 - smoothstep(half_extent * 0.55, half_extent * 0.96,
 		max(abs(VERTEX.x), abs(VERTEX.z)));
 
 	vec3 disp;
@@ -80,55 +100,87 @@ void vertex() {
 	VERTEX += disp;
 	world_pos = wp + disp;
 	wave_normal = nrm;
-
-	// 거품은 높이가 아니라 가파름에서 난다. 물마루가 무너지는 자리다.
-	crest = smoothstep(0.55, 1.15, steep);
+	crest = smoothstep(0.42, 0.95, steep);
 }
 
 void fragment() {
 	float dist = length(VERTEX);
-
-	// 잔결은 가까울수록만. 멀리까지 얹으면 수평선이 지글거린다.
-	float fine = clamp(1.0 - dist / 1400.0, 0.0, 1.0);
 	float t = TIME;
-	vec3 r1 = texture(ripple_normals, world_pos.xz / 26.0 + vec2(t * 0.010, t * 0.007)).xyz * 2.0 - 1.0;
-	vec3 r2 = texture(ripple_normals, world_pos.xz / 7.5 - vec2(t * 0.021, t * 0.014)).xyz * 2.0 - 1.0;
-	vec2 tilt = (r1.xz * 0.45 + r2.xz * 0.28) * fine;
-	vec3 n = normalize(wave_normal + vec3(tilt.x, 0.0, tilt.y));
-	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
+
+	// ── 잔결. 주기가 서로 안 맞는 세 배율을 각각 다른 각도로 겹쳐 타일 무늬를 깬다
+	float f1 = clamp(1.0 - dist / 2600.0, 0.0, 1.0);
+	float f2 = clamp(1.0 - dist / 900.0, 0.0, 1.0);
+	float f3 = clamp(1.0 - dist / 260.0, 0.0, 1.0);
+
+	vec3 r1 = texture(ripple_normals, rot2(world_pos.xz, 0.0) / 41.0
+		+ vec2(t * 0.008, t * 0.005)).xyz * 2.0 - 1.0;
+	vec3 r2 = texture(ripple_normals, rot2(world_pos.xz, 0.93) / 13.7
+		- vec2(t * 0.017, t * 0.011)).xyz * 2.0 - 1.0;
+	vec3 r3 = texture(ripple_normals, rot2(world_pos.xz, -1.71) / 4.3
+		+ vec2(t * 0.031, -t * 0.024)).xyz * 2.0 - 1.0;
+
+	vec2 tilt = r1.xz * 0.20 * f1 + r2.xz * 0.15 * f2 + r3.xz * 0.11 * f3;
+
+	// 법선을 둘로 나눈다.
+	//
+	// 잔결을 그대로 색에 먹이면 물결 하나하나가 하늘을 통째로 비춰서
+	// 바다가 아니라 파랑-하양 레이스가 된다. 실제로는 그 잔결이 만드는 건
+	// 색이 아니라 반짝임이다. 그래서 색은 큰 물결만 보고, 반짝임만 잔결까지 본다.
+	vec3 n_fine = normalize(wave_normal + vec3(tilt.x, 0.0, tilt.y));
+	vec3 n_body = normalize(wave_normal + vec3(tilt.x, 0.0, tilt.y) * 0.26);
+	NORMAL = normalize((VIEW_MATRIX * vec4(n_fine, 0.0)).xyz);
 
 	vec3 view_dir = normalize(-VERTEX);
-	vec3 nv = normalize(NORMAL);
+	vec3 nv = normalize((VIEW_MATRIX * vec4(n_body, 0.0)).xyz);
 
-	// 프레넬 — 내려다보면 물속이 보이고, 스칠수록 하늘을 비춘다.
-	// 이 한 줄이 물을 물로 보이게 하는 가장 큰 몫이다.
+	// ── 프레넬. 내려다보면 물속이 보이고, 스칠수록 하늘을 비춘다.
+	// 멀수록 물결이 잘게 흩어져 거울 노릇을 못 하므로 반사를 눌러준다.
+	// 이걸 안 눌러서 수평선이 하늘보다 밝아졌었다.
+	float grazing = clamp(dist / 1300.0, 0.0, 1.0);
 	float f = clamp(dot(nv, view_dir), 0.0, 1.0);
-	float fres = 0.02 + 0.98 * pow(1.0 - f, 5.0);
+	float fres = (0.02 + 0.98 * pow(1.0 - f, 5.0)) * mix(1.0, 0.34, grazing);
 
-	// 비치는 하늘. 위를 볼수록 천정색.
 	vec3 refl_dir = reflect(-view_dir, nv);
 	vec3 world_refl = (INV_VIEW_MATRIX * vec4(refl_dir, 0.0)).xyz;
-	vec3 sky = mix(sky_horizon, sky_zenith, clamp(world_refl.y * 1.6, 0.0, 1.0));
+	// 물에 비친 하늘은 하늘 자체보다 어둡다
+	vec3 sky = mix(sky_horizon, sky_zenith, clamp(world_refl.y * 1.6, 0.0, 1.0)) * 0.70;
 
 	vec3 body = mix(deep_color, shallow_color, clamp(1.0 - f * 0.85, 0.0, 1.0));
+	vec3 col = mix(body, sky, fres);
 
 	// 물마루가 얇아지면 빛이 통과해 속이 비친다
-	float sss = crest * 0.55 + smoothstep(0.2, 1.0, world_pos.y * 0.5) * 0.25;
+	col += sss_color * crest * 0.5 * f2;
 
-	vec3 col = mix(body, sky, fres);
-	col += sss_color * sss * fine;
+	// ── 뱃머리가 가르는 물살. 켈빈 항적처럼 뒤로 벌어지는 V.
+	vec2 rel = world_pos.xz - ship_pos;
+	float along = dot(rel, ship_dir);
+	float side = dot(rel, vec2(-ship_dir.y, ship_dir.x));
+	float wake = 0.0;
+	if (along < 6.0 && ship_speed01 > 0.01) {
+		float back = max(0.0, -along);
+		// 배 바로 뒤에 휘저어진 물. 좁게 시작해 천천히 벌어지고 금세 잦아든다.
+		float churn = exp(-pow(abs(side) / (4.5 + back * 0.075), 2.0)) * exp(-back / 34.0);
+		// 좌우로 벌어지는 두 팔. 이건 선이라서 가늘어야 팔로 보인다.
+		float arm = abs(abs(side) - 2.5 - back * 0.30);
+		float arms = exp(-arm * 0.85) * exp(-back / 90.0) * 0.55;
+		wake = (churn * 0.7 + arms) * ship_speed01;
+		// 고르게 칠하면 페인트로 보인다. 굵게 한 번, 잘게 한 번 얼룩을 준다.
+		float churny = vnoise(world_pos.xz * 0.55 + vec2(t * 0.15, 0.0))
+			* 0.65 + vnoise(world_pos.xz * 2.1 - vec2(0.0, t * 0.4)) * 0.35;
+		wake *= 0.35 + 0.85 * churny;
+	}
 
-	// 거품은 얼룩덜룩해야 한다. 고르게 칠하면 페인트로 보인다.
-	float patch = hash(floor(world_pos.xz * 0.7));
+	// ── 거품. 고르게 칠하면 페인트로 보이므로 얼룩덜룩하게.
+	float patch = vnoise(world_pos.xz * 0.7);
 	float foam = crest * smoothstep(0.25, 0.8, patch + crest * 0.35);
-	col = mix(col, foam_color, clamp(foam, 0.0, 0.85));
+	foam = clamp(foam + wake, 0.0, 0.75);
+	col = mix(col, foam_color, foam);
 
-	// 수평선으로 갈수록 대기에 잠긴다
-	float far = clamp(dist / fade_dist, 0.0, 1.0);
-	ALBEDO = mix(col, sky_horizon, far * 0.75);
+	ALBEDO = col;
 
-	// 낮은 거칠기라야 해가 잘게 부서져 윤슬이 생긴다
-	ROUGHNESS = mix(mix(0.035, 0.55, foam), 0.35, far);
+	// 가까이는 거울처럼, 멀리는 잘게 흩어지게. 이 경사가 흰 수평선을 막는다.
+	// 너무 매끈하면 해가 물결마다 통째로 비쳐 하얀 레이스가 깔린다.
+	ROUGHNESS = mix(mix(0.20, 0.62, foam), 0.48, grazing);
 	METALLIC = 0.0;
-	SPECULAR = 0.85;
+	SPECULAR = 0.38;
 }

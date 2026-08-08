@@ -16,6 +16,7 @@ var band: BandView
 var chart: ChartView
 
 var _viewport: SubViewport
+var _spray: Spray
 var _scene_wrap: Control
 var _chart_layer: Control
 var _prompt: Label
@@ -230,6 +231,9 @@ func _build_world() -> void:
 
 	ship = ShipModel.build()
 	sails_node = ship.get_node_or_null("Sails")
+	_spray = Spray.new()
+	_spray.name = "Spray"
+	ship.add_child(_spray)
 	_viewport.add_child(ship)
 
 	for s in voyage.other_ships:
@@ -318,9 +322,21 @@ func _process(delta: float) -> void:
 	_place_ship()
 	rig.place(ship.global_position, voyage.heading)
 	ocean.follow(ship.global_position)
+	_update_wake()
 	_update_sky()
 	_update_hud()
 	band.refresh(voyage)
+
+## 뱃머리가 가르는 물살과 물보라. 둘 다 속력을 그대로 따라간다.
+func _update_wake() -> void:
+	var a := deg_to_rad(voyage.heading)
+	var fwd := Vector2(sin(a), -cos(a))
+	var sp01 := clampf(voyage.speed_knots() / 10.0, 0.0, 1.0)
+	ocean.set_ship(ship.global_position, fwd, sp01)
+
+	# 배속을 올리면 배가 세계를 훌쩍훌쩍 건너뛴다. 물방울은 태어난 자리에 남으므로
+	# 그때 물보라를 계속 뿜으면 배 뒤로 흰 줄이 길게 끌린다. 그래서 끊는다.
+	_spray.set_speed01(sp01 if voyage.time_scale <= 4.0 else 0.0)
 
 ## 배를 파도 위에 올린다. 앞뒤·좌우 네 점의 물 높이로 기울기를 구한다.
 func _place_ship() -> void:
