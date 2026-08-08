@@ -1,4 +1,4 @@
-<title>항해 화면 — M0 검증용</title>
+<title>항해 화면 — 가로 8:2 슬롯 구조</title>
 
 <style>
   :root {
@@ -11,6 +11,13 @@
     --ink-faint:   #877A62;
     --rule:        #A2937350;
     --rule-solid:  #A79877;
+
+    --band:        #B5A585;
+    --band-2:      #A89776;
+    --band-ink:    #241E14;
+    --band-soft:   #50462F;
+    --band-faint:  #6E634A;
+    --band-rule:   #8B7C5C;
 
     --brass:       #8E6412;
     --brass-lit:   #B5821C;
@@ -46,6 +53,13 @@
       --rule:        #3B414D;
       --rule-solid:  #434A57;
 
+      --band:        #191D24;
+      --band-2:      #22272F;
+      --band-ink:    #E2D8BC;
+      --band-soft:   #A79D86;
+      --band-faint:  #746B58;
+      --band-rule:   #3B414D;
+
       --brass:       #D9A441;
       --brass-lit:   #F0C570;
       --vermilion:   #DC6152;
@@ -74,6 +88,13 @@
     --rule:        #3B414D;
     --rule-solid:  #434A57;
 
+    --band:        #191D24;
+    --band-2:      #22272F;
+    --band-ink:    #E2D8BC;
+    --band-soft:   #A79D86;
+    --band-faint:  #746B58;
+    --band-rule:   #3B414D;
+
     --brass:       #D9A441;
     --brass-lit:   #F0C570;
     --vermilion:   #DC6152;
@@ -92,13 +113,11 @@
   }
 
   * { box-sizing: border-box; }
-
   body {
     margin: 0; background: var(--ground); color: var(--ink);
     font-family: var(--font-body); font-size: 15px; line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
-
   .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 56px;
           display: flex; flex-direction: column; gap: 18px; }
 
@@ -109,118 +128,120 @@
        font-weight: 700; margin: 0; text-wrap: balance; }
   .lede { margin: 2px 0 0; max-width: 66ch; color: var(--ink-soft); font-size: 14.5px; }
 
-  /* ─── 게임 화면 ──────────────────────────────────────── */
-  .screen {
-    position: relative; width: 100%; aspect-ratio: 16 / 9;
+  /* ═══ 게임 ═══════════════════════════════════════════════ */
+  .stage {
+    display: flex; flex-direction: column;
+    width: 100%; aspect-ratio: 16 / 10;
     border: 1px solid var(--rule-solid); border-radius: 3px;
     overflow: hidden; box-shadow: var(--shadow); background: #0B1622;
   }
+
+  .scene { position: relative; flex: 1 1 auto; min-height: 0; }
   #sea { display: block; width: 100%; height: 100%; outline: none; cursor: crosshair; }
-
-  .hud { position: absolute; inset: 0; pointer-events: none;
-         font-family: var(--font-mono); color: #F2ECDA; }
-  .hud > * { position: absolute; }
-
-  .hud-plate {
-    background: #0B1622B8; border: 1px solid #F2ECDA33; border-radius: 2px;
-    padding: 7px 10px; backdrop-filter: blur(2px);
-  }
-
-  .hud-tl { top: 12px; left: 12px; display: flex; flex-direction: column; gap: 3px; }
-  .hud-line { display: flex; gap: 8px; align-items: baseline;
-              font-size: 12.5px; font-variant-numeric: tabular-nums; }
-  .hud-key { color: #F2ECDA88; font-size: 10.5px; min-width: 32px; }
-  .hud-val { font-weight: 600; }
-  .hud-val.good { color: #86D8B4; }
-  .hud-val.bad  { color: #E89185; }
-
-  .hud-bl { bottom: 12px; left: 12px; max-width: 250px; }
-  .hud-bl .who { font-size: 10.5px; color: #F2ECDA88; margin-bottom: 4px;
-                 font-family: var(--font-body); letter-spacing: .06em; }
-  .bear { display: grid; grid-template-columns: 1fr auto auto; gap: 8px;
-          font-size: 12px; padding: 1px 0; font-variant-numeric: tabular-nums; }
-  .bear .bn { font-family: var(--font-body); }
-  .bear .bd { font-weight: 700; color: #E8C169; }
-  .bear .bk { color: #F2ECDA77; font-size: 10.5px; }
-  .bear.done .bd { color: #86D8B4; }
-
-  #minimap { position: absolute; right: 12px; bottom: 12px;
-             width: 168px; height: 168px; border: 1px solid #F2ECDA44;
-             border-radius: 2px; background: #0B1622; }
+  #sea:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
 
   .prompt {
-    left: 50%; transform: translateX(-50%); bottom: 22px;
-    font-family: var(--font-body); font-size: 13px; font-weight: 600;
-    letter-spacing: .02em; color: #FFF3D6;
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px;
+    font-size: 13px; font-weight: 600; color: #FFF3D6;
     background: #0B1622D9; border: 1px solid #E8C16988;
-    border-radius: 2px; padding: 8px 16px;
+    border-radius: 2px; padding: 7px 15px; pointer-events: none;
   }
-  .prompt[hidden] { display: none; }
-
   .surveying {
-    top: 12px; left: 50%; transform: translateX(-50%);
-    font-family: var(--font-body); font-size: 12px; font-weight: 600;
-    color: #E8C169; background: #0B1622B8; border: 1px solid #E8C16966;
-    border-radius: 2px; padding: 5px 12px;
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; font-weight: 600; color: #E8C169;
+    background: #0B1622B8; border: 1px solid #E8C16966;
+    border-radius: 2px; padding: 4px 12px; pointer-events: none;
   }
-  .surveying[hidden] { display: none; }
+  .camhint {
+    position: absolute; top: 12px; right: 12px;
+    font-size: 11.5px; color: #E8C169;
+    background: #0B1622B8; border: 1px solid #E8C16955;
+    border-radius: 2px; padding: 4px 10px; pointer-events: none;
+    font-variant-numeric: tabular-nums;
+  }
+  [hidden] { display: none !important; }
 
-  /* ─── 전체 해도 ──────────────────────────────────────── */
   .chart-overlay {
-    position: absolute; inset: 0; z-index: 5;
-    background: #0B1622E8; display: flex; align-items: center; justify-content: center;
-    padding: 16px; pointer-events: auto;
+    position: absolute; inset: 0; z-index: 5; background: #0B1622EE;
+    display: flex; align-items: center; justify-content: center; padding: 14px;
   }
-  .chart-overlay[hidden] { display: none; }
   .chart-frame { position: relative; height: 100%; aspect-ratio: 1 / 1;
                  border: 1px solid #F2ECDA44; background: var(--unmapped); }
   #chart { display: block; width: 100%; height: 100%; }
-  .chart-hint {
-    position: absolute; bottom: -2px; left: 50%; transform: translate(-50%, 120%);
-    font-family: var(--font-body); font-size: 11.5px; color: #F2ECDA99; white-space: nowrap;
+  .chart-hint { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+                font-size: 11px; color: #F2ECDAAA; white-space: nowrap; }
+
+  /* ═══ 아래 띠 — 슬롯 넷 ══════════════════════════════════ */
+  .band {
+    flex: 0 0 22%; display: flex; min-height: 0;
+    background: var(--band); border-top: 2px solid var(--band-rule);
+    color: var(--band-ink);
+  }
+  .slot { padding: 9px 11px; min-width: 0; display: flex; flex-direction: column; }
+  .slot + .slot { border-left: 1px solid var(--band-rule); }
+
+  .slot-portrait { flex: 0 0 auto; width: 104px; padding: 0; background: var(--band-2); }
+  #portrait { display: block; width: 100%; height: 100%; }
+
+  .slot-talk { flex: 1 1 auto; gap: 5px; }
+  .say { display: flex; gap: 8px; align-items: baseline; min-height: 22px; }
+  .say-who { font-size: 11.5px; font-weight: 700; color: var(--brass); flex: none; }
+  .say-text { font-size: 14px; color: var(--band-ink); }
+  .notes { display: flex; flex-direction: column-reverse; gap: 1px; flex: 1 1 auto;
+           overflow: hidden; justify-content: flex-end; }
+  .note-line { font-size: 12px; color: var(--band-soft); white-space: nowrap;
+               overflow: hidden; text-overflow: ellipsis; }
+  .note-line.hi   { color: var(--brass); font-weight: 600; }
+  .note-line.warn { color: var(--vermilion); font-weight: 600; }
+
+  .acts { display: flex; gap: 6px; flex: none; }
+  .acts button {
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    color: var(--band-ink); background: var(--band-2);
+    border: 1px solid var(--band-rule); border-radius: 2px;
+    padding: 4px 9px; cursor: pointer; display: flex; align-items: center; gap: 5px;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .acts button:hover:not(:disabled) { border-color: var(--brass); color: var(--brass); }
+  .acts button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .acts button:disabled { opacity: .4; cursor: not-allowed; }
+  .acts button.urge { background: var(--brass); border-color: var(--brass); color: var(--band); }
+  .acts button.on   { background: var(--brass); border-color: var(--brass); color: var(--band); }
+  .acts kbd {
+    font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+    border: 1px solid currentColor; border-radius: 2px; padding: 0 3px;
+    opacity: .65; line-height: 1.35;
   }
 
-  .helpbar {
-    padding: 9px 14px; font-size: 12px; color: var(--ink-faint);
-    display: flex; flex-wrap: wrap; gap: 4px 14px;
-    border: 1px solid var(--rule-solid); border-top: none; border-radius: 0 0 3px 3px;
-    background: var(--surface); margin-top: -18px;
-  }
-  kbd { font-family: var(--font-mono); font-size: 11px; font-weight: 600;
-        background: var(--surface-2); border: 1px solid var(--rule-solid);
-        border-bottom-width: 2px; border-radius: 3px; padding: 0 5px; color: var(--ink-soft); }
+  .slot-ctx { flex: 0 0 auto; width: 132px; align-items: center; gap: 3px; }
+  #compass { display: block; flex: 1 1 auto; min-height: 0; aspect-ratio: 1/1; }
+  .ctx-line { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums;
+              color: var(--band-soft); white-space: nowrap; }
+  .ctx-line b { color: var(--band-ink); font-weight: 700; }
+  .ctx-line.good b { color: var(--verdigris); }
+  .ctx-line.bad  b { color: var(--vermilion); }
 
-  /* ─── 항해일지 · 노트 ────────────────────────────────── */
-  .panel { background: var(--surface); border: 1px solid var(--rule-solid);
-           border-radius: 3px; box-shadow: var(--shadow); overflow: hidden; }
-  .panel-head { display: flex; align-items: baseline; justify-content: space-between;
-                gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--rule);
-                background: var(--surface-2); }
-  .panel-title { font-size: 12px; font-weight: 700; letter-spacing: .13em; margin: 0; }
-  .panel-note { font-family: var(--font-latin); font-size: 10.5px; letter-spacing: .2em;
-                text-transform: uppercase; color: var(--ink-faint); }
+  .slot-map { flex: 0 0 auto; padding: 7px; }
+  #minimap { display: block; height: 100%; aspect-ratio: 1/1;
+             border: 1px solid var(--band-rule); background: #0B1622; }
 
-  .log { margin: 0; padding: 10px 14px 12px; max-height: 132px; overflow-y: auto;
-         display: flex; flex-direction: column-reverse; gap: 5px; font-size: 12.5px; }
-  .log-line { display: flex; gap: 9px; align-items: baseline; }
-  .log-t { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-           font-size: 11px; color: var(--ink-faint); flex: none; min-width: 50px; }
-  .log-msg { color: var(--ink-soft); }
-  .log-line.hi .log-msg   { color: var(--brass); font-weight: 600; }
-  .log-line.warn .log-msg { color: var(--vermilion); font-weight: 600; }
-  .log-line.sign .log-msg { color: var(--verdigris); }
-
-  .notes { display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0,1fr); }
-  @media (min-width: 760px) { .notes { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-  .note { padding: 15px 17px 17px; display: flex; flex-direction: column; gap: 9px; }
-  .note h2 { font-size: 12px; letter-spacing: .13em; font-weight: 700; margin: 0; color: var(--brass); }
-  .note ol, .note ul { margin: 0; padding-left: 1.15em; display: flex; flex-direction: column; gap: 7px; }
-  .note li { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
-  .note li b { color: var(--ink); font-weight: 600; }
-  .note p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+  /* ═══ 검증용 — 게임 밖 ═══════════════════════════════════ */
+  .review { border-top: 2px dashed var(--rule-solid); padding-top: 18px;
+            display: grid; gap: 16px; align-items: start; grid-template-columns: minmax(0,1fr); }
+  @media (min-width: 760px) { .review { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  .note-card { padding: 15px 17px 17px; background: var(--surface);
+               border: 1px solid var(--rule-solid); border-radius: 3px;
+               display: flex; flex-direction: column; gap: 9px; }
+  .note-card h2 { font-size: 12px; letter-spacing: .13em; font-weight: 700; margin: 0; color: var(--brass); }
+  .note-card ol { margin: 0; padding-left: 1.15em; display: flex; flex-direction: column; gap: 7px; }
+  .note-card li { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; }
+  .note-card li b { color: var(--ink); font-weight: 600; }
+  .note-card p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
   .dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 13px; }
   .dl dt { color: var(--ink); font-weight: 600; }
   .dl dd { margin: 0; color: var(--ink-soft); }
+  .review-label { grid-column: 1 / -1; font-size: 11px; letter-spacing: .18em;
+                  color: var(--ink-faint); margin: -6px 0 0; }
 
   @media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
 </style>
@@ -229,87 +250,80 @@
 
   <header>
     <p class="eyebrow">Prototype M0 · In Alto Mari</p>
-    <h1>항해 화면 — 배 뒤에서 보는 바다</h1>
+    <h1>항해 화면 — 위는 바다, 아래는 슬롯 넷</h1>
     <p class="lede">
-      화면 하나가 곧 게임입니다. 배 뒤 시점으로 바다를 달리고, 미니맵은 구석에,
-      전체 해도는 <kbd>M</kbd>으로 엽니다. 지나간 자리는 해도에 영구히 남습니다.
-      리스보아에서 나와 사그레스·파루·카디스를 찾아보세요.
+      수평선은 화면 폭을 다 씁니다. 아래 띠는 장면이 바뀌어도 뼈대가 같습니다 —
+      초상화 · 대사 · 문맥 · 지도. 지금은 항해 장면이라 문맥 자리에 바람과 침로가 들어가 있고,
+      도시를 만들면 같은 자리에 소지금과 날짜가 들어갑니다.
     </p>
   </header>
 
-  <div class="screen" id="screen">
-    <canvas id="sea" tabindex="0" aria-label="배 뒤에서 본 바다. 방향키로 조타합니다."></canvas>
-
-    <div class="hud">
-      <div class="hud-tl hud-plate">
-        <div class="hud-line"><span class="hud-key">시각</span><span class="hud-val" id="h-time">—</span></div>
-        <div class="hud-line"><span class="hud-key">침로</span><span class="hud-val" id="h-hdg">—</span></div>
-        <div class="hud-line"><span class="hud-key">속력</span><span class="hud-val" id="h-spd">—</span></div>
-        <div class="hud-line"><span class="hud-key">바람</span><span class="hud-val" id="h-wind">—</span></div>
-        <div class="hud-line"><span class="hud-key">해도</span><span class="hud-val" id="h-map">—</span></div>
-      </div>
-
-      <div class="hud-bl hud-plate">
-        <div class="who" id="who">주앙 · 항해장</div>
-        <div id="bearings"></div>
-      </div>
-
+  <div class="stage" id="stage">
+    <div class="scene" id="scene">
+      <canvas id="sea" tabindex="0" aria-label="배 뒤에서 본 바다"></canvas>
       <div class="surveying" id="surveying" hidden>측량 중 — 배가 느려집니다</div>
+      <div class="camhint" id="camhint" hidden></div>
       <div class="prompt" id="prompt" hidden></div>
-
-      <canvas id="minimap"></canvas>
-    </div>
-
-    <div class="chart-overlay" id="chart-overlay" hidden>
-      <div class="chart-frame">
-        <canvas id="chart"></canvas>
-        <span class="chart-hint"><kbd>M</kbd> 또는 아무 곳이나 눌러 닫기</span>
+      <div class="chart-overlay" id="chart-overlay" hidden>
+        <div class="chart-frame">
+          <canvas id="chart"></canvas>
+          <span class="chart-hint">아무 곳이나 눌러 닫기</span>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="helpbar">
-    <span><kbd>←</kbd><kbd>→</kbd> 조타</span>
-    <span><kbd>↑</kbd><kbd>↓</kbd> 돛</span>
-    <span><kbd>Space</kbd> 측량 (누르는 동안)</span>
-    <span><kbd>M</kbd> 해도</span>
-    <span><kbd>E</kbd> 입항</span>
-    <span>바다를 클릭해도 뱃머리를 돌립니다</span>
-  </div>
+    <div class="band">
+      <div class="slot slot-portrait"><canvas id="portrait"></canvas></div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2 class="panel-title">항해일지</h2>
-      <span class="panel-note">Diario</span>
+      <div class="slot slot-talk">
+        <div class="say">
+          <span class="say-who" id="say-who">주앙</span>
+          <span class="say-text" id="say-text">돛을 올렸습니다. 어디로 갈지 물어보십시오.</span>
+        </div>
+        <div class="notes" id="notes"></div>
+        <div class="acts">
+          <button id="b-ask">묻기<kbd>Q</kbd></button>
+          <button id="b-chart">해도<kbd>M</kbd></button>
+          <button id="b-survey">측량<kbd>Space</kbd></button>
+          <button id="b-enter" disabled>입항<kbd>E</kbd></button>
+        </div>
+      </div>
+
+      <div class="slot slot-ctx">
+        <canvas id="compass" aria-label="침로와 바람"></canvas>
+        <span class="ctx-line" id="ctx-wind">바람 <b>—</b></span>
+        <span class="ctx-line" id="ctx-spd">— 노트 · —</span>
+      </div>
+
+      <div class="slot slot-map"><canvas id="minimap" aria-label="해역 미니맵"></canvas></div>
     </div>
-    <div class="log" id="log" aria-live="polite"></div>
-  </section>
+  </div>
 
-  <div class="notes">
-    <section class="panel note">
+  <div class="review">
+    <p class="review-label">— 이 아래는 게임이 아니라 검증용입니다 —</p>
+
+    <section class="note-card">
       <h2>무엇을 판단해 주십시오</h2>
       <ol>
-        <li><b>이제 원작의 항해 감각에 가깝습니까.</b> 배 뒤에서 수평선을 보는 시점, 구석의 미니맵, 따로 여는 해도 — 구조가 맞는지부터 봐주십시오.</li>
-        <li><b>바다를 달리는 것 자체가 좋습니까.</b> 아무 목적 없이 1분만 돌아다녀 보십시오.</li>
-        <li><b>수평선 너머로 육지가 떠오르는 순간이 사는 느낌이 납니까.</b> 이 시점의 존재 이유입니다.</li>
-        <li><b>해도를 열었을 때(<kbd>M</kbd>) 내가 채운 만큼이 보상으로 느껴집니까.</b> 좋다고 하신 부분이라 그대로 두었습니다.</li>
-        <li><b>측량을 스스로 쓰게 됩니까.</b> 안 눌러도 되게 만들어 뒀습니다.</li>
+        <li><b>8:2가 맞습니까.</b> 바다가 답답하면 띠를 더 줄이고, 아래가 비좁으면 늘리겠습니다.</li>
+        <li><b>슬롯 넷이 맞습니까.</b> 도시를 만들면 같은 자리에 NPC 초상화 · 대사 · 소지금 · 마을지도가 들어갑니다. 이 뼈대로 도시까지 갈 수 있을지 봐주십시오.</li>
+        <li><b>주앙에게 묻는 것이 목록보다 낫습니까.</b> 누를 때마다 다음 목적지를 말합니다.</li>
+        <li><b>나침반 하나로 바람이 읽힙니까.</b> 뱃머리는 늘 위, 바람 화살표의 위치가 곧 상대 바람입니다. 색만 봐도 되게 했습니다.</li>
+        <li><b>버튼에 키를 적어두니 낫습니까.</b> 외울 것이 없어야 한다는 말씀을 이렇게 풀었습니다.</li>
       </ol>
     </section>
 
-    <section class="panel note">
+    <section class="note-card">
       <h2>이번에 바꾼 것</h2>
       <dl class="dl">
-        <dt>시점</dt><dd>위에서 내려다보는 화면 → 배 뒤 3인칭. 하늘·수평선·멀리 떠오르는 해안</dd>
-        <dt>배치</dt><dd>패널 나열 → 게임 화면 하나. 정보는 전부 HUD로 얹음</dd>
-        <dt>미니맵</dt><dd>우하단 구석. 바람과 내 위치만</dd>
-        <dt>해도</dt><dd>항상 띄우지 않고 <kbd>M</kbd>으로 여는 별도 화면</dd>
-        <dt>측량</dt><dd>원작 스킬 이름으로 되돌림. 누르는 동안 넓게 밝히고 배는 느려짐</dd>
-        <dt>입항</dt><dd>항구에 접근하면 프롬프트가 뜨고 <kbd>E</kbd>로 입항</dd>
+        <dt>배치</dt><dd>반투명 HUD 전부 제거 → 아래 불투명 띠. 장면 위에 뜨는 건 프롬프트뿐</dd>
+        <dt>슬롯</dt><dd>초상화 · 대사 · 문맥 · 지도. 장면이 바뀌어도 뼈대는 그대로</dd>
+        <dt>주앙</dt><dd>목적지 목록 → 초상화와 대사. 묻기를 누를 때마다 한 곳씩</dd>
+        <dt>바람</dt><dd>미니맵 구석 → 독립 나침반. 침로와 바람을 한 다이얼에 겹쳐 상대 관계로</dd>
+        <dt>메뉴</dt><dd>키 암기 → 버튼. 키는 버튼 위에 적어둠</dd>
       </dl>
       <p style="margin-top:4px">
-        3D 모델과 도시 화면은 아직 없습니다. 지금 판단하실 것은 <b>시점과 화면 구조가 맞는가</b>입니다.
-        여기서 맞다고 하시면 그 위에 배 모델과 도시를 얹는 순서로 가겠습니다.
+        도시 장면, 3D 모델, 교역은 아직 없습니다. 지금 보실 것은 <b>이 뼈대로 도시까지 갈 수 있는가</b>입니다.
       </p>
     </section>
   </div>
@@ -325,7 +339,6 @@
   const B = { lonMin: -11.0, lonMax: -5.2, latMin: 33.4, latMax: 39.6 };
   const LONSQ = Math.cos(36.5 * Math.PI / 180);
 
-  // 실제 해안선 — 화면에 그리는 데 쓴다
   const COAST_IB = [
     [-8.90,39.60],[-9.10,39.55],[-9.42,39.36],[-9.33,39.20],[-9.20,39.10],
     [-9.35,38.90],[-9.42,38.78],[-9.38,38.70],[-9.30,38.66],[-9.25,38.55],
@@ -341,7 +354,6 @@
     [-6.15,35.20],[-6.35,34.80],[-6.55,34.50],[-6.75,34.20],[-6.84,34.03],
     [-7.10,33.80],[-7.45,33.65],[-7.62,33.55],[-8.00,33.40]
   ];
-  // 충돌 판정용 닫힌 다각형
   const IBERIA = COAST_IB.concat([[-5.20,39.60]]);
   const AFRICA = COAST_AF.concat([[-8.00,33.40],[-5.20,33.40]]);
 
@@ -357,14 +369,15 @@
   const SIGHT_KM = 26, SURVEY_KM = 72, ARRIVE_KM = 16;
   const HOURS_PER_SEC = 0.34, BASE_KN = 4.2;
 
-  /* ═══ 상태 ════════════════════════════════════════════════ */
   const S = {
-    lon: -9.55, lat: 38.72, hdg: 200, sails: 1, camYaw: 0,
+    // 리스보아를 나와 남쪽으로. 이 자리에서 뱃머리 왼편에 포르투갈 해안이 걸린다.
+    lon: -9.50, lat: 38.62, hdg: 175, sails: 1, camYaw: 0,
     windBrg: 210, windPhase: 0, hours: 8,
     survey: false, chartOpen: false,
     revealed: [], found: new Set(), visited: new Set(),
     hired: false, features: [], seenFeat: new Set(),
-    lastGround: -99, nearPort: null
+    lastGround: -99, nearPort: null, askIdx: 0,
+    say: { who: "주앙", text: "돛을 올렸습니다. 어디로 갈지 물어보십시오." }
   };
 
   const $ = (id) => document.getElementById(id);
@@ -379,15 +392,20 @@
     return w + (j ? a : b);
   }
 
-  const logEl = $("log");
-  function log(msg, kind) {
-    const line = document.createElement("div");
-    line.className = "log-line" + (kind ? " " + kind : "");
-    const d = Math.floor(S.hours / 24), h = Math.floor(S.hours % 24);
-    line.innerHTML = `<span class="log-t">${d}일 ${String(h).padStart(2,"0")}시</span><span class="log-msg"></span>`;
-    line.querySelector(".log-msg").textContent = msg;
-    logEl.appendChild(line);
-    while (logEl.children.length > 70) logEl.removeChild(logEl.firstChild);
+  /* 세계가 알려주는 것 — 대사와 섞지 않는다 */
+  const notesEl = $("notes");
+  function note(msg, kind) {
+    const el = document.createElement("div");
+    el.className = "note-line" + (kind ? " " + kind : "");
+    el.textContent = msg;
+    notesEl.appendChild(el);
+    while (notesEl.children.length > 8) notesEl.removeChild(notesEl.firstChild);
+  }
+  /* 사람이 하는 말 */
+  function say(who, text) {
+    S.say = { who, text };
+    $("say-who").textContent = who;
+    $("say-text").textContent = text;
   }
 
   function inPoly(lon, lat, p) {
@@ -401,7 +419,6 @@
   const onLand = (lo, la) => inPoly(lo, la, IBERIA) || inPoly(lo, la, AFRICA);
   const distKm = (aLo, aLa, bLo, bLa) =>
     Math.hypot((aLa - bLa) * KM_LAT, (aLo - bLo) * kmLon((aLa + bLa) / 2));
-
   function coastDistKm(lon, lat) {
     let best = 1e9;
     for (const poly of [COAST_IB, COAST_AF])
@@ -415,7 +432,7 @@
     { k:"암초",   n:[0,60],   m:"물이 하얗게 부서진다. 암초다." },
     { k:"어장",   n:[20,140], m:"물고기 떼가 수면을 뒤집는다." }
   ];
-  (function seed() {
+  (function seedFeatures() {
     let s = 77239;
     const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
     let g = 0;
@@ -432,11 +449,9 @@
   })();
 
   /* ═══ 진행 ════════════════════════════════════════════════ */
-  function windMult() { return 0.45 + 0.75 * (0.5 + 0.5 * Math.cos(rad(S.hdg - S.windBrg))); }
-  function windLabel() {
-    const r = Math.cos(rad(S.hdg - S.windBrg));
-    return r > 0.55 ? "순풍" : r > -0.2 ? "옆바람" : "역풍";
-  }
+  const windRel = () => Math.cos(rad(S.hdg - S.windBrg));
+  const windMult = () => 0.45 + 0.75 * (0.5 + 0.5 * windRel());
+  const windLabel = () => { const r = windRel(); return r > 0.55 ? "순풍" : r > -0.2 ? "옆바람" : "역풍"; };
 
   function reveal(r) {
     const last = S.revealed[S.revealed.length - 1];
@@ -461,7 +476,7 @@
       else if (!onLand(S.lon, nLat)) { S.lat = nLat; }
       else if (S.hours - S.lastGround > 2) {
         S.lastGround = S.hours;
-        log("물이 얕다. 뱃머리를 돌려야 한다.", "warn");
+        note("물이 얕다. 뱃머리를 돌려야 한다.", "warn");
       }
       S.lon = Math.max(B.lonMin, Math.min(B.lonMax, S.lon));
       S.lat = Math.max(B.latMin, Math.min(B.latMax, S.lat));
@@ -480,11 +495,19 @@
       const sight = (S.survey ? SURVEY_KM : SIGHT_KM) + 8;
       if (d < sight && !S.found.has(p.name)) {
         S.found.add(p.name);
-        log(`수평선에 ${josa(p.name, "이", "가")} 보인다. 해도에 적어 넣는다.`, "hi");
+        note(`수평선에 ${josa(p.name, "이", "가")} 보인다. 해도에 적어 넣는다.`, "hi");
       }
       if (d < ARRIVE_KM && d < nd) { nd = d; near = p; }
     }
     S.nearPort = near;
+  }
+
+  function checkFeatures() {
+    const r = (S.survey ? SURVEY_KM : SIGHT_KM) * 0.8;
+    for (const f of S.features) {
+      if (S.seenFeat.has(f.id)) continue;
+      if (distKm(S.lon, S.lat, f.lon, f.lat) < r) { S.seenFeat.add(f.id); note(f.msg); }
+    }
   }
 
   function enterPort() {
@@ -493,64 +516,63 @@
     S.sails = 0;
     if (!S.visited.has(p.name)) {
       S.visited.add(p.name);
-      log(`${p.name} 입항. 닻을 내린다.`, "hi");
+      note(`${p.name} 입항. 닻을 내린다.`, "hi");
       if (p.hires && !S.hired) {
         S.hired = true;
-        log("부두에서 무어인 항해사 유수프를 만나 배에 태웠다. 남쪽 연안이 열렸다.", "hi");
+        say("유수프", "마그레브 사람입니다. 남쪽 물길이라면 제가 압니다. 태워 주시겠습니까.");
+        note("유수프를 배에 태웠다. 남쪽 연안이 열렸다.", "hi");
+      } else {
+        say("주앙", `${p.name}입니다. 닻을 내렸습니다.`);
       }
     } else {
-      log(`${p.name}에 다시 들렀다.`);
+      say("주앙", `${p.name}에 다시 들렀습니다.`);
     }
   }
 
-  function checkFeatures() {
-    const r = (S.survey ? SURVEY_KM : SIGHT_KM) * 0.8;
-    for (const f of S.features) {
-      if (S.seenFeat.has(f.id)) continue;
-      if (distKm(S.lon, S.lat, f.lon, f.lat) < r) { S.seenFeat.add(f.id); log(f.msg, "sign"); }
-    }
+  /* 선원에게 묻는다 — 목록이 아니라 대답 */
+  function askCrew() {
+    const known = PORTS.filter(p => !p.home && (p.region === "이베리아" || S.hired));
+    const left = known.filter(p => !S.visited.has(p.name));
+    if (!left.length) { say("주앙", "이 근방은 다 돌았습니다. 더 먼 데를 아는 사람이 필요합니다."); return; }
+    const p = left[S.askIdx % left.length];
+    S.askIdx++;
+    const dir = COMPASS8[Math.round(bearingTo(p) / 45) % 8];
+    const d = distKm(S.lon, S.lat, p.lon, p.lat);
+    const far = d < 25 ? "바로 눈앞입니다" : d < 90 ? "반나절이면 닿습니다"
+              : d < 200 ? "하루는 잡으셔야 합니다" : d < 400 ? "이삼일은 걸립니다" : "먼 길입니다";
+    const who = p.region === "마그레브" ? "유수프" : "주앙";
+    say(who, `${p.name}요? ${dir}쪽입니다. ${far}.`);
+  }
+  function bearingTo(p) {
+    const dE = (p.lon - S.lon) * kmLon(S.lat), dN = (p.lat - S.lat) * KM_LAT;
+    return (Math.atan2(dE, dN) * 180 / Math.PI + 360) % 360;
   }
 
-  /* ═══ 배 뒤 시점 투영 ═════════════════════════════════════ */
-  // 바다면 위의 점을, 배 뒤 높은 곳에 앉은 눈이 본 자리로 옮긴다.
-  const CAM_H   = 0.050;   // 눈높이 50m — 이 시대 배의 망대쯤
-  const F0      = 0.35;    // 근거리 완충
-  const PK      = 2400;    // 세로 배율
-  const XK      = 820;     // 가로 배율 — 가로 시야 약 90°
-  const FAR     = 62;      // 높은 해안은 이만큼 멀리서도 떠오른다 (km)
-  const CAMBACK = 0.30;    // 배 뒤로 물러난 거리
+  /* ═══ 배 뒤 시점 ══════════════════════════════════════════ */
+  const CAM_H = 0.050, F0 = 0.35, PK = 2400, XK = 820, FAR = 62, CAMBACK = 0.30;
 
   const sea = $("sea"), sctx = sea.getContext("2d");
   let SW = 0, SH = 0, HZ = 0;
 
-  // 세계 좌표 → 눈 기준 (앞으로 f, 옆으로 l), 단위 km.
-  // 눈은 배보다 CAMBACK만큼 뒤에 있고, 고개를 camYaw만큼 돌릴 수 있다.
   function toShip(lon, lat) {
     const camLon = S.lon - Math.sin(rad(S.hdg)) * CAMBACK / kmLon(S.lat);
     const camLat = S.lat - Math.cos(rad(S.hdg)) * CAMBACK / KM_LAT;
-    const dE = (lon - camLon) * kmLon(camLat);
-    const dN = (lat - camLat) * KM_LAT;
+    const dE = (lon - camLon) * kmLon(camLat), dN = (lat - camLat) * KM_LAT;
     const a = rad(S.hdg + S.camYaw);
-    return { f: dN * Math.cos(a) + dE * Math.sin(a),
-             l: -dN * Math.sin(a) + dE * Math.cos(a) };
+    return { f: dN * Math.cos(a) + dE * Math.sin(a), l: -dN * Math.sin(a) + dE * Math.cos(a) };
   }
   const projY = (f, h) => HZ + PK * (CAM_H - h) / (f + F0);
   const projX = (f, l) => SW / 2 + XK * l / (f + F0);
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
-  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-
-  // 하늘빛 — 시각에 따라
   function skyColors(h) {
-    const stops = [
-      [ 0, ["#070C18","#101A2B"]], [ 5, ["#12203A","#3E4A63"]],
-      [ 7, ["#4A5C7E","#C08A63"]], [ 9, ["#5C86B4","#A8C4D8"]],
-      [15, ["#5A87BA","#AFC9DC"]], [18, ["#5A6E96","#D9A06A"]],
-      [20, ["#22304C","#6B5A6B"]], [24, ["#070C18","#101A2B"]]
-    ];
+    const stops = [[0,["#070C18","#101A2B"]],[5,["#12203A","#3E4A63"]],
+      [7,["#4A5C7E","#C08A63"]],[9,["#5C86B4","#A8C4D8"]],[15,["#5A87BA","#AFC9DC"]],
+      [18,["#5A6E96","#D9A06A"]],[20,["#22304C","#6B5A6B"]],[24,["#070C18","#101A2B"]]];
     const t = ((h % 24) + 24) % 24;
     let a = stops[0], b = stops[stops.length - 1];
     for (let i = 0; i < stops.length - 1; i++)
-      if (t >= stops[i][0] && t <= stops[i + 1][0]) { a = stops[i]; b = stops[i + 1]; }
+      if (t >= stops[i][0] && t <= stops[i+1][0]) { a = stops[i]; b = stops[i+1]; }
     const k = (t - a[0]) / Math.max(0.001, b[0] - a[0]);
     const mix = (c1, c2) => {
       const p = (c) => [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
@@ -561,27 +583,23 @@
   }
   const isNight = () => { const t = S.hours % 24; return t < 5.5 || t > 19.5; };
 
-  /* 해안선을 근평면 앞쪽만 남기고 잘라낸다 */
   function clipCoast(pts) {
     const NEAR = 0.06, segs = [];
     let cur = [];
     for (let i = 0; i < pts.length - 1; i++) {
-      let a = pts[i], b = pts[i + 1];
-      const aIn = a.f > NEAR, bIn = b.f > NEAR;
-      if (!aIn && !bIn) { if (cur.length) { segs.push(cur); cur = []; } continue; }
+      const a = pts[i], b = pts[i+1], aIn = a.f > NEAR, bIn = b.f > NEAR;
       const cut = (p, q) => {
         const t = (NEAR - p.f) / (q.f - p.f);
         return { f: NEAR, l: p.l + (q.l - p.l) * t, h: p.h + (q.h - p.h) * t };
       };
+      if (!aIn && !bIn) { if (cur.length) { segs.push(cur); cur = []; } continue; }
       if (aIn && bIn) { if (!cur.length) cur.push(a); cur.push(b); }
-      else if (aIn && !bIn) { if (!cur.length) cur.push(a); cur.push(cut(a, b)); segs.push(cur); cur = []; }
-      else { if (cur.length) { segs.push(cur); cur = []; } cur.push(cut(b, a)); cur.push(b); }
+      else if (aIn) { if (!cur.length) cur.push(a); cur.push(cut(a,b)); segs.push(cur); cur = []; }
+      else { if (cur.length) { segs.push(cur); cur = []; } cur.push(cut(b,a)); cur.push(b); }
     }
     if (cur.length) segs.push(cur);
     return segs;
   }
-
-  // 해안마다 고만고만한 높이를 준다 (같은 자리는 늘 같은 높이)
   function coastHeight(lon, lat) {
     const s = Math.sin(lon * 12.9898 + lat * 78.233) * 43758.5453;
     return 0.10 + (s - Math.floor(s)) * 0.22;
@@ -591,95 +609,83 @@
     const C = sctx;
     if (!SW) return;
     HZ = SH * 0.44;
+    const night = isNight();
 
     const [skyTop, skyBot] = skyColors(S.hours);
     const g = C.createLinearGradient(0, 0, 0, HZ);
     g.addColorStop(0, skyTop); g.addColorStop(1, skyBot);
     C.fillStyle = g; C.fillRect(0, 0, SW, HZ);
 
-    if (isNight()) {
+    if (night) {
       let s = 4242;
       const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
       C.fillStyle = "#E8EEFA";
       for (let i = 0; i < 90; i++) {
-        const x = rnd() * SW, y = rnd() * HZ * 0.92, r = rnd() * 1.1 + .3;
+        const x = rnd() * SW, y = rnd() * HZ * .92, r = rnd() * 1.1 + .3;
         C.globalAlpha = .25 + rnd() * .55;
         C.beginPath(); C.arc(x, y, r, 0, Math.PI * 2); C.fill();
       }
       C.globalAlpha = 1;
     }
 
-    // 바다
-    const night = isNight();
     const gs = C.createLinearGradient(0, HZ, 0, SH);
     gs.addColorStop(0, night ? "#0C1626" : "#3E6580");
     gs.addColorStop(1, night ? "#050A12" : "#12304A");
     C.fillStyle = gs; C.fillRect(0, HZ, SW, SH - HZ);
 
-    // 원근 물결 — 멀수록 촘촘하게
-    C.strokeStyle = night ? "#7C93B0" : "#BFD6E4";
-    C.lineWidth = 1;
+    C.strokeStyle = night ? "#7C93B0" : "#BFD6E4"; C.lineWidth = 1;
     for (let i = 1; i < 46; i++) {
       const f = 0.12 * Math.pow(1.145, i);
       if (f > FAR) break;
       const y = projY(f, 0);
       if (y > SH + 4) continue;
-      C.globalAlpha = Math.max(0, 0.20 - f * 0.004);
+      C.globalAlpha = Math.max(0, .20 - f * .004);
       C.beginPath();
       for (let x = 0; x <= SW; x += 14) {
-        const yy = y + Math.sin(x * 0.02 + t * 1.4 + i * 0.9) * (1.6 / (f * 0.25 + 1));
+        const yy = y + Math.sin(x * .02 + t * 1.4 + i * .9) * (1.6 / (f * .25 + 1));
         x ? C.lineTo(x, yy) : C.moveTo(x, yy);
       }
       C.stroke();
     }
     C.globalAlpha = 1;
 
-    // 수평선 아지랑이 — 먼 육지가 안개에서 떠오르게 한다
-    const haze = C.createLinearGradient(0, HZ - SH * 0.06, 0, HZ + SH * 0.05);
-    haze.addColorStop(0, "rgba(0,0,0,0)");
-    haze.addColorStop(0.5, night ? "#16202EBB" : "#B9CCDBAA");
-    haze.addColorStop(1, "rgba(0,0,0,0)");
-
     drawCoast(C, night);
-    C.fillStyle = haze; C.fillRect(0, HZ - SH * 0.06, SW, SH * 0.11);
+
+    // 수평선 아지랑이 — 먼 육지가 안개에서 떠오르게 한다
+    const haze = C.createLinearGradient(0, HZ - SH * .05, 0, HZ + SH * .04);
+    haze.addColorStop(0, "rgba(0,0,0,0)");
+    haze.addColorStop(.5, night ? "#16202E66" : "#C3D4E066");
+    haze.addColorStop(1, "rgba(0,0,0,0)");
+    C.fillStyle = haze; C.fillRect(0, HZ - SH * .05, SW, SH * .09);
+
     drawPortsInView(C, night);
-    drawFeaturesInView(C, t, night);
+    drawFeaturesInView(C, t);
     drawShip(C, t, night);
   }
 
   function drawCoast(C, night) {
-    const landFill = night ? "#161C26" : "#5B6152";
-    const landTop  = night ? "#1E2632" : "#6E7462";
+    const fill = night ? "#161C26" : "#5B6152", top = night ? "#1E2632" : "#6E7462";
     for (const coast of [COAST_IB, COAST_AF]) {
       const pts = coast.map(([lo, la]) => {
-        const p = toShip(lo, la);
-        p.h = coastHeight(lo, la);
-        return p;
+        const p = toShip(lo, la); p.h = coastHeight(lo, la); return p;
       });
       for (const seg of clipCoast(pts)) {
-        if (seg.length < 2) continue;
-        // 보이는 거리 안에 하나도 없으면 건너뛴다
-        if (!seg.some(p => p.f < FAR)) continue;
-
+        if (seg.length < 2 || !seg.some(p => p.f < FAR)) continue;
         C.beginPath();
         seg.forEach((p, i) => {
           const x = projX(p.f, p.l), y = projY(p.f, 0);
           i ? C.lineTo(x, y) : C.moveTo(x, y);
         });
-        for (let i = seg.length - 1; i >= 0; i--) {
-          const p = seg[i];
-          C.lineTo(projX(p.f, p.l), projY(p.f, p.h));
-        }
-        C.closePath();
-        C.fillStyle = landFill; C.fill();
+        for (let i = seg.length - 1; i >= 0; i--)
+          C.lineTo(projX(seg[i].f, seg[i].l), projY(seg[i].f, seg[i].h));
+        C.closePath(); C.fillStyle = fill; C.fill();
 
-        // 능선
         C.beginPath();
         seg.forEach((p, i) => {
           const x = projX(p.f, p.l), y = projY(p.f, p.h);
           i ? C.lineTo(x, y) : C.moveTo(x, y);
         });
-        C.strokeStyle = landTop; C.lineWidth = 1.4; C.stroke();
+        C.strokeStyle = top; C.lineWidth = 1.4; C.stroke();
       }
     }
   }
@@ -688,19 +694,15 @@
     C.textAlign = "center";
     for (const p of PORTS) {
       const sp = toShip(p.lon, p.lat);
-      if (sp.f < 0.1 || sp.f > FAR) continue;
+      if (sp.f < .1 || sp.f > FAR) continue;
       const x = projX(sp.f, sp.l), yBase = projY(sp.f, 0);
       if (x < -80 || x > SW + 80) continue;
-      const hTop = projY(sp.f, 0.055);
-      const w = Math.max(3, (yBase - hTop) * 1.5);
-
-      // 부두와 집 몇 채
+      const hTop = projY(sp.f, .055), w = Math.max(3, (yBase - hTop) * 1.5);
       C.fillStyle = night ? "#2A2A32" : "#7A6E58";
       C.fillRect(x - w / 2, hTop, w, yBase - hTop);
+      const spire = projY(sp.f, .085);
       C.fillStyle = night ? "#E8C169" : "#C9B58C";
-      const spire = projY(sp.f, 0.085);
-      C.fillRect(x - w * 0.10, spire, w * 0.2, yBase - spire);
-
+      C.fillRect(x - w * .10, spire, w * .2, yBase - spire);
       if (S.found.has(p.name)) {
         C.font = "600 12px " + css("--font-body");
         C.fillStyle = "#F2ECDA";
@@ -711,10 +713,11 @@
     }
   }
 
-  function drawFeaturesInView(C, t, night) {
+  function drawFeaturesInView(C, t) {
+    const night = isNight();
     for (const f of S.features) {
       const sp = toShip(f.lon, f.lat);
-      if (sp.f < 0.15 || sp.f > 16) continue;
+      if (sp.f < .15 || sp.f > 16) continue;
       const x = projX(sp.f, sp.l), y = projY(sp.f, 0);
       if (x < -40 || x > SW + 40) continue;
       const sc = Math.max(.35, Math.min(2.6, 3.2 / (sp.f + .6)));
@@ -744,16 +747,14 @@
     C.globalAlpha = 1;
   }
 
-  /* 배 — 화면 아래 가운데, 고물에서 본 모습 */
   function drawShip(C, t, night) {
     const sp = toShip(S.lon, S.lat);
-    if (sp.f < 0.05) return;                       // 고개를 완전히 돌리면 배가 화면 밖으로
+    if (sp.f < .05) return;
     const baseX = projX(sp.f, sp.l), baseY = projY(sp.f, 0);
-    const roll = Math.sin(t * 1.1) * 2.0 + Math.sin(t * 0.63) * 1.1;
-    const bob  = Math.sin(t * 1.35) * 2.4;
+    const roll = Math.sin(t * 1.1) * 2.0 + Math.sin(t * .63) * 1.1;
+    const bob = Math.sin(t * 1.35) * 2.4;
     const sc = SH / 640;
 
-    // 항적은 배와 함께 기울지 않는다
     if (S.sails > 0) {
       C.save(); C.translate(baseX, baseY + bob); C.scale(sc, sc);
       C.strokeStyle = "#FFFFFF"; C.lineWidth = 2;
@@ -769,44 +770,30 @@
     }
 
     C.save();
-    C.translate(SW / 2, baseY + bob);
-    C.scale(sc, sc);
-    C.rotate(rad(roll));
+    C.translate(baseX, baseY + bob); C.scale(sc, sc); C.rotate(rad(roll));
 
-    const hull  = night ? "#2A2118" : "#4E3D26";
-    const trim  = night ? "#645540" : "#8E7550";
+    const hull = night ? "#2A2118" : "#4E3D26";
+    const trim = night ? "#645540" : "#8E7550";
     const upper = night ? "#332818" : "#63502F";
 
-    // 선체 — 아래로 좁아지는 고물
     C.fillStyle = hull; C.strokeStyle = trim; C.lineWidth = 1.4;
     C.beginPath();
-    C.moveTo(-15, 5);
-    C.quadraticCurveTo(-18, -4, -16, -12);
-    C.lineTo(16, -12);
-    C.quadraticCurveTo(18, -4, 15, 5);
-    C.quadraticCurveTo(0, 10, -15, 5);
-    C.closePath(); C.fill(); C.stroke();
+    C.moveTo(-15, 5); C.quadraticCurveTo(-18, -4, -16, -12);
+    C.lineTo(16, -12); C.quadraticCurveTo(18, -4, 15, 5);
+    C.quadraticCurveTo(0, 10, -15, 5); C.closePath(); C.fill(); C.stroke();
 
-    // 선미루 — 이 시대 배는 고물이 높다
     C.fillStyle = upper;
     C.beginPath();
     C.moveTo(-12.5, -12); C.lineTo(-10.5, -24);
     C.lineTo(10.5, -24); C.lineTo(12.5, -12);
     C.closePath(); C.fill(); C.stroke();
 
-    // 선미 창 두 짝
     C.fillStyle = night ? "#C8A24A" : "#2A2118";
     C.globalAlpha = night ? .85 : .5;
     C.fillRect(-6.5, -21, 4.5, 4); C.fillRect(2, -21, 4.5, 4);
     C.globalAlpha = 1;
 
-    // 난간
-    C.strokeStyle = trim; C.lineWidth = .9;
-    C.beginPath(); C.moveTo(-10.5, -24); C.lineTo(10.5, -24); C.stroke();
-
     const lean = Math.sin(rad(S.windBrg - S.hdg)) * 6;
-
-    // 돛대
     C.strokeStyle = night ? "#584A35" : "#7C6A46"; C.lineWidth = 2.2;
     C.beginPath(); C.moveTo(0, -20); C.lineTo(lean, -84); C.stroke();
 
@@ -814,8 +801,6 @@
       const belly = 3 + S.sails * 3.4;
       C.fillStyle = night ? "#8B8776" : "#EDE4CD";
       C.strokeStyle = night ? "#5A5648" : "#A89A7C"; C.lineWidth = 1;
-
-      // 대돛 — 위가 넓은 가로돛, 바람 받아 배부름
       const ty = -76, by = -44, tw = 21, bw = 17;
       C.beginPath();
       C.moveTo(-tw + lean, ty); C.lineTo(tw + lean, ty);
@@ -824,11 +809,9 @@
       C.quadraticCurveTo(-bw + lean + belly, (ty + by) / 2, -tw + lean, ty);
       C.closePath(); C.fill(); C.stroke();
 
-      // 활대
       C.strokeStyle = night ? "#584A35" : "#7C6A46"; C.lineWidth = 1.6;
       C.beginPath(); C.moveTo(-tw - 2 + lean, ty); C.lineTo(tw + 2 + lean, ty); C.stroke();
 
-      // 아랫돛
       C.fillStyle = night ? "#8B8776" : "#EDE4CD";
       C.strokeStyle = night ? "#5A5648" : "#A89A7C"; C.lineWidth = 1;
       const l2 = lean * .55;
@@ -840,20 +823,161 @@
       C.closePath(); C.fill(); C.stroke();
     }
 
-    // 삼각기 — 바람이 부는 쪽으로 날린다
     const flag = Math.sin(rad(S.windBrg - S.hdg)) * 9;
     C.fillStyle = "#B33A2E";
     C.beginPath();
-    C.moveTo(lean, -84); C.lineTo(lean + flag, -81.5);
-    C.lineTo(lean + flag * .55, -78.5);
+    C.moveTo(lean, -84); C.lineTo(lean + flag, -81.5); C.lineTo(lean + flag * .55, -78.5);
+    C.closePath(); C.fill();
+    C.restore();
+  }
+
+  /* ═══ 초상화 ══════════════════════════════════════════════ */
+  const portrait = $("portrait"), pctx = portrait.getContext("2d");
+
+  // 옆얼굴로 그린다 — 정면보다 어색해질 여지가 적고 시대 메달 초상화의 감각이 난다
+  function drawPortrait() {
+    const C = pctx, w = portrait.clientWidth, h = portrait.clientHeight;
+    if (!w) return;
+    const moor = S.say.who === "유수프";
+
+    C.clearRect(0, 0, w, h);
+    C.fillStyle = css("--band-2"); C.fillRect(0, 0, w, h);
+
+    const s = Math.min(w / 90, h / 110);
+    C.save();
+    C.translate(w / 2, h * 0.98); C.scale(s, s);
+
+    // 배경 아치
+    C.fillStyle = css("--band");
+    C.beginPath();
+    C.moveTo(-38, 0); C.lineTo(-38, -66);
+    C.quadraticCurveTo(0, -104, 38, -66); C.lineTo(38, 0);
     C.closePath(); C.fill();
 
+    const ink = css("--band-ink");
+    const skin = moor ? "#8A6440" : "#B69268";
+
+    // 어깨
+    C.fillStyle = ink;
+    C.beginPath();
+    C.moveTo(-34, 0); C.quadraticCurveTo(-30, -22, -8, -28);
+    C.lineTo(16, -28); C.quadraticCurveTo(32, -22, 34, 0);
+    C.closePath(); C.fill();
+
+    // 목과 옆얼굴 (오른쪽을 본다)
+    C.fillStyle = skin;
+    C.beginPath();
+    C.moveTo(-6, -28);
+    C.lineTo(-6, -44);
+    C.quadraticCurveTo(-16, -50, -15, -62);      // 뒤통수
+    C.quadraticCurveTo(-14, -78, 0, -80);        // 정수리
+    C.quadraticCurveTo(12, -80, 14, -68);        // 이마
+    C.lineTo(17, -60);                            // 콧대
+    C.lineTo(19, -56); C.lineTo(14, -54);        // 코끝
+    C.lineTo(15, -50);                            // 인중
+    C.quadraticCurveTo(12, -46, 13, -42);        // 입·턱
+    C.quadraticCurveTo(6, -30, -6, -28);
+    C.closePath(); C.fill();
+
+    // 수염
+    C.fillStyle = moor ? "#2B2118" : "#4A3524";
+    C.beginPath();
+    C.moveTo(-6, -30); C.quadraticCurveTo(10, -30, 14, -42);
+    C.quadraticCurveTo(16, -36, 10, -28);
+    C.quadraticCurveTo(2, -22, -6, -26);
+    C.closePath(); C.fill();
+
+    // 모자 / 터번
+    C.fillStyle = moor ? "#C7BCA0" : "#3B2C1C";
+    if (moor) {
+      C.beginPath();
+      C.ellipse(0, -78, 19, 11, 0, Math.PI, 0);
+      C.quadraticCurveTo(16, -66, 0, -66);
+      C.quadraticCurveTo(-16, -66, -19, -78);
+      C.closePath(); C.fill();
+      C.strokeStyle = css("--band"); C.lineWidth = 1.2;
+      C.beginPath(); C.moveTo(-16, -74); C.quadraticCurveTo(0, -70, 15, -75); C.stroke();
+    } else {
+      C.beginPath();
+      C.moveTo(-17, -74); C.quadraticCurveTo(-14, -88, 2, -88);
+      C.quadraticCurveTo(17, -87, 15, -73);
+      C.quadraticCurveTo(0, -80, -17, -74);
+      C.closePath(); C.fill();
+    }
+
+    // 눈
+    C.fillStyle = "#1A140C";
+    C.beginPath(); C.ellipse(9, -64, 1.7, 1.4, 0, 0, Math.PI * 2); C.fill();
+
+    // 옷깃
+    C.strokeStyle = css("--band"); C.lineWidth = 1.6;
+    C.beginPath(); C.moveTo(-9, -27); C.lineTo(-2, -18); C.lineTo(6, -27); C.stroke();
+
     C.restore();
+
+    // 이름표
+    C.fillStyle = css("--band-faint");
+    C.font = "600 9.5px " + css("--font-body");
+    C.textAlign = "center"; C.textBaseline = "bottom";
+    C.fillText(moor ? "유수프" : "주앙", w / 2, h - 3);
+  }
+
+  /* ═══ 나침반 — 뱃머리는 늘 위, 바람은 상대 위치로 ══════════ */
+  const compass = $("compass"), kctx = compass.getContext("2d");
+
+  function drawCompass() {
+    const C = kctx, w = compass.clientWidth, h = compass.clientHeight;
+    if (!w) return;
+    const R = Math.min(w, h) / 2 - 3, cx = w / 2, cy = h / 2;
+    C.clearRect(0, 0, w, h);
+
+    // 바람 품질에 따라 고리 색이 변한다 — 숫자를 안 읽어도 된다
+    const rel = windRel();
+    const k = (rel + 1) / 2;
+    const col = `rgb(${Math.round(190 - 120 * k)},${Math.round(70 + 100 * k)},${Math.round(60 + 50 * k)})`;
+
+    C.strokeStyle = css("--band-rule"); C.lineWidth = 1;
+    C.beginPath(); C.arc(cx, cy, R, 0, Math.PI * 2); C.stroke();
+
+    C.strokeStyle = col; C.lineWidth = 3.4; C.globalAlpha = .85;
+    C.beginPath(); C.arc(cx, cy, R - 2.5, 0, Math.PI * 2); C.stroke();
+    C.globalAlpha = 1;
+
+    // 나침반 눈금은 침로에 따라 돈다
+    C.save(); C.translate(cx, cy); C.rotate(rad(-S.hdg));
+    C.strokeStyle = css("--band-faint"); C.lineWidth = 1;
+    for (let i = 0; i < 16; i++) {
+      const a = i * Math.PI / 8, major = i % 4 === 0;
+      C.beginPath();
+      C.moveTo(Math.sin(a) * (R - (major ? 12 : 7)), -Math.cos(a) * (R - (major ? 12 : 7)));
+      C.lineTo(Math.sin(a) * (R - 5), -Math.cos(a) * (R - 5));
+      C.stroke();
+    }
+    C.fillStyle = css("--band-soft");
+    C.font = "700 10px " + css("--font-body");
+    C.textAlign = "center"; C.textBaseline = "middle";
+    C.fillText("북", 0, -(R - 18));
+    C.restore();
+
+    // 바람 화살표 — 상대 방위 자리에
+    C.save(); C.translate(cx, cy); C.rotate(rad(S.windBrg - S.hdg));
+    C.strokeStyle = col; C.fillStyle = col; C.lineWidth = 2;
+    C.beginPath(); C.moveTo(0, -(R - 14)); C.lineTo(0, R - 20); C.stroke();
+    C.beginPath();
+    C.moveTo(0, R - 13); C.lineTo(-4.5, R - 21); C.lineTo(4.5, R - 21);
+    C.closePath(); C.fill();
+    C.restore();
+
+    // 뱃머리는 언제나 위
+    C.fillStyle = css("--band-ink");
+    C.beginPath();
+    C.moveTo(cx, cy - 10); C.lineTo(cx + 5, cy + 7); C.lineTo(cx, cy + 3);
+    C.lineTo(cx - 5, cy + 7); C.closePath(); C.fill();
   }
 
   /* ═══ 미니맵 ══════════════════════════════════════════════ */
   const mini = $("minimap"), mctx = mini.getContext("2d");
-  const MINI_DEG = 3.4;   // 미니맵에 담기는 위도 폭
+  const MINI_DEG = 1.8;   // 미니맵은 눈앞 해역만. 전체는 해도가 맡는다
 
   function drawMinimap() {
     const C = mctx, w = mini.clientWidth, h = mini.clientHeight;
@@ -864,7 +988,6 @@
 
     C.fillStyle = "#0B1622"; C.fillRect(0, 0, w, h);
 
-    // 밝혀진 바다
     C.save();
     C.beginPath();
     for (const r of S.revealed) {
@@ -882,38 +1005,20 @@
     }
     C.restore();
 
-    // 발견한 항구
     for (const p of PORTS) {
       if (!S.found.has(p.name)) continue;
       C.fillStyle = "#E8C169";
       C.beginPath(); C.arc(mx(p.lon), my(p.lat), 3, 0, Math.PI * 2); C.fill();
     }
 
-    // 바람 — 원작처럼 구름으로
-    C.save();
-    C.translate(w - 26, 26);
-    C.fillStyle = "#F2ECDA33";
-    C.beginPath();
-    C.arc(-5, 1, 5, 0, Math.PI * 2); C.arc(2, -2, 6.5, 0, Math.PI * 2); C.arc(7, 3, 4.5, 0, Math.PI * 2);
-    C.fill();
-    C.rotate(rad(S.windBrg));
-    C.strokeStyle = "#86D8B4"; C.fillStyle = "#86D8B4"; C.lineWidth = 1.6;
-    C.beginPath(); C.moveTo(0, -9); C.lineTo(0, 7); C.stroke();
-    C.beginPath(); C.moveTo(0, 12); C.lineTo(-3.5, 5); C.lineTo(3.5, 5); C.closePath(); C.fill();
-    C.restore();
-
-    // 내 배
     C.save();
     C.translate(w / 2, h / 2); C.rotate(rad(S.hdg));
     C.fillStyle = "#D9534A";
     C.beginPath(); C.moveTo(0, -7); C.lineTo(4, 4); C.lineTo(-4, 4); C.closePath(); C.fill();
     C.restore();
-
-    C.strokeStyle = "#F2ECDA22"; C.lineWidth = 1;
-    C.strokeRect(.5, .5, w - 1, h - 1);
   }
 
-  /* ═══ 전체 해도 ═══════════════════════════════════════════ */
+  /* ═══ 해도 ════════════════════════════════════════════════ */
   const chart = $("chart"), cctx = chart.getContext("2d");
   const fog = document.createElement("canvas"), fctx = fog.getContext("2d");
   let CW = 0, CH = 0, PX = 0, PY = 0, PS = 0, fogDirty = true;
@@ -929,6 +1034,8 @@
     PS = Math.min(CW / gw, CH / gh);
     PX = (CW - gw * PS) / 2; PY = (CH - gh * PS) / 2;
     const dpr = Math.min(devicePixelRatio || 1, 2);
+    chart.width = Math.round(CW * dpr); chart.height = Math.round(CH * dpr);
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fog.width = Math.round(CW * dpr); fog.height = Math.round(CH * dpr);
     fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fogDirty = true;
@@ -1007,7 +1114,6 @@
     C.save();
     C.beginPath(); C.rect(PX, PY, CW - PX * 2, CH - PY * 2); C.clip();
     C.drawImage(fog, 0, 0, CW, CH);
-
     C.font = "600 11px " + css("--font-body");
     C.textAlign = "center"; C.textBaseline = "top";
     for (const p of PORTS) {
@@ -1020,9 +1126,8 @@
     }
     C.restore();
 
-    const shx = cx_(S.lon), shy = cy_(S.lat);
     C.save();
-    C.translate(shx, shy); C.rotate(rad(S.hdg));
+    C.translate(cx_(S.lon), cy_(S.lat)); C.rotate(rad(S.hdg));
     C.fillStyle = css("--vermilion");
     C.beginPath(); C.moveTo(0, -8); C.lineTo(4, 4); C.lineTo(-4, 4); C.closePath(); C.fill();
     C.restore();
@@ -1031,74 +1136,45 @@
     C.strokeRect(PX + .5, PY + .5, CW - PX * 2 - 1, CH - PY * 2 - 1);
   }
 
-  /* ═══ HUD ═════════════════════════════════════════════════ */
-  const REGION_KM2 = (B.lonMax - B.lonMin) * kmLon((B.latMin + B.latMax) / 2)
-                   * (B.latMax - B.latMin) * KM_LAT;
-  function mappedKm2() {
-    let hit = 0, total = 0;
-    for (let i = 0; i <= 22; i++) for (let j = 0; j <= 22; j++) {
-      const lon = B.lonMin + (B.lonMax - B.lonMin) * i / 22;
-      const lat = B.latMin + (B.latMax - B.latMin) * j / 22;
-      total++;
-      for (const r of S.revealed) if (distKm(lon, lat, r.lon, r.lat) < r.r) { hit++; break; }
-    }
-    return Math.round(hit / total * REGION_KM2 / 100) * 100;
-  }
+  /* ═══ 띠 갱신 ═════════════════════════════════════════════ */
+  function updateBand() {
+    const wl = windLabel();
+    const wEl = $("ctx-wind");
+    wEl.className = "ctx-line " + (wl === "순풍" ? "good" : wl === "역풍" ? "bad" : "");
+    wEl.innerHTML = "바람 <b></b>";
+    wEl.querySelector("b").textContent = wl;
 
-  const roughDist = (km) => km < 25 ? "눈앞" : km < 90 ? "반나절"
-                          : km < 200 ? "하루" : km < 400 ? "이삼일" : "먼 길";
-  function bearingTo(p) {
-    const dE = (p.lon - S.lon) * kmLon(S.lat), dN = (p.lat - S.lat) * KM_LAT;
-    return (Math.atan2(dE, dN) * 180 / Math.PI + 360) % 360;
-  }
-
-  function renderBearings() {
-    const box = $("bearings");
-    box.innerHTML = "";
-    for (const p of PORTS) {
-      if (p.home) continue;
-      if (p.region === "마그레브" && !S.hired) continue;
-      const d = distKm(S.lon, S.lat, p.lon, p.lat);
-      const row = document.createElement("div");
-      row.className = "bear" + (S.visited.has(p.name) ? " done" : "");
-      row.innerHTML = `<span class="bn"></span><span class="bd"></span><span class="bk"></span>`;
-      row.querySelector(".bn").textContent = p.name;
-      row.querySelector(".bd").textContent =
-        S.visited.has(p.name) ? "다녀옴" : COMPASS8[Math.round(bearingTo(p) / 45) % 8] + "쪽";
-      row.querySelector(".bk").textContent = roughDist(d);
-      box.appendChild(row);
-    }
-    $("who").textContent = S.hired ? "주앙 · 항해장   |   유수프 · 마그레브" : "주앙 · 항해장";
-  }
-
-  let mapCache = 0, mapTimer = 0;
-  function updateHUD(dt) {
+    const kn = BASE_KN * (S.survey ? Math.min(S.sails, 2) * .34 : S.sails) * windMult();
     const d = Math.floor(S.hours / 24), h = Math.floor(S.hours % 24), m = Math.floor((S.hours % 1) * 60);
-    $("h-time").textContent = `${d}일 ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
-    $("h-hdg").textContent = `${Math.round(S.hdg)}° ${COMPASS16[Math.round(S.hdg/22.5)%16]}`;
-    const kn = BASE_KN * (S.survey ? Math.min(S.sails,2)*0.34 : S.sails) * windMult();
-    $("h-spd").textContent = kn.toFixed(1) + " 노트";
-    const wl = windLabel(), wEl = $("h-wind");
-    wEl.textContent = wl;
-    wEl.className = "hud-val " + (wl === "순풍" ? "good" : wl === "역풍" ? "bad" : "");
-
-    mapTimer -= dt;
-    if (mapTimer <= 0) { mapCache = mappedKm2(); mapTimer = 0.6; }
-    $("h-map").textContent = mapCache.toLocaleString("ko-KR") + " km²";
+    $("ctx-spd").textContent =
+      `${kn.toFixed(1)}노트 · ${d}일 ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
 
     $("surveying").hidden = !S.survey;
+    $("b-survey").classList.toggle("on", S.survey);
+
+    const ch = $("camhint");
+    if (Math.abs(S.camYaw) > 4) {
+      ch.hidden = false;
+      const side = S.camYaw < 0 ? "왼쪽" : "오른쪽";
+      ch.textContent = `${side} ${Math.round(Math.abs(S.camYaw))}° 보는 중 — 두 번 눌러 정면`;
+    } else ch.hidden = true;
+
+    const near = S.nearPort && !S.chartOpen;
+    $("b-enter").disabled = !near;
+    $("b-enter").classList.toggle("urge", !!near && !S.visited.has(S.nearPort?.name));
+
     const pr = $("prompt");
-    if (S.nearPort && !S.chartOpen) {
+    if (near) {
       pr.hidden = false;
       pr.textContent = S.visited.has(S.nearPort.name)
-        ? `${S.nearPort.name} — E 눌러 입항`
-        : `${josa(S.nearPort.name, "이", "가")} 눈앞이다 — E 눌러 입항`;
+        ? `${S.nearPort.name} — 입항할 수 있습니다`
+        : `${josa(S.nearPort.name, "이", "가")} 눈앞이다`;
     } else pr.hidden = true;
   }
 
   /* ═══ 조작 ════════════════════════════════════════════════ */
   const keys = new Set();
-  const TRACKED = new Set(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","a","d","w","s"," ","m","e"]);
+  const TRACKED = new Set(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","a","d","w","s"," ","m","e","q"]);
 
   function setChart(open) {
     S.chartOpen = open;
@@ -1117,6 +1193,7 @@
     if (k === " ") S.survey = true;
     if (k === "m") setChart(!S.chartOpen);
     if (k === "e") enterPort();
+    if (k === "q") askCrew();
   });
   addEventListener("keyup", (e) => {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -1128,19 +1205,45 @@
 
   $("chart-overlay").addEventListener("pointerdown", () => setChart(false));
 
+  // 끌면 고개를 돌리고, 그냥 누르면 그쪽으로 뱃머리를 돌린다
+  let drag = null;
   sea.addEventListener("pointerdown", (e) => {
     sea.focus();
+    sea.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, moved: 0 };
+  });
+  sea.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    drag.x = e.clientX; drag.moved += Math.abs(dx);
+    if (drag.moved > 4) S.camYaw = Math.max(-140, Math.min(140, S.camYaw - dx * 0.26));
+  });
+  sea.addEventListener("pointerup", (e) => {
+    if (!drag) return;
+    const wasDrag = drag.moved > 4;
+    drag = null;
+    if (wasDrag) return;
     const r = sea.getBoundingClientRect();
     const px = e.clientX - r.left, py = e.clientY - r.top;
-    if (py < HZ) return;                       // 하늘을 누르면 무시
-    // 화면 위치를 역투영해 그쪽으로 뱃머리를 돌린다
+    if (py < HZ) return;
     const f = PK * CAM_H / Math.max(1, py - HZ) - F0;
     const l = (px - SW / 2) * (f + F0) / XK;
-    S.hdg = (S.hdg + Math.atan2(l, Math.max(0.05, f)) * 180 / Math.PI + 360) % 360;
+    // 화면에서 고른 방향은 지금 보고 있는 쪽 기준이므로 고개 각도를 더해준다
+    const rel = Math.atan2(l, Math.max(.05, f)) * 180 / Math.PI + S.camYaw;
+    S.hdg = (S.hdg + rel + 360) % 360;
   });
+  sea.addEventListener("pointercancel", () => { drag = null; });
+  sea.addEventListener("dblclick", () => { S.camYaw = 0; });
+
+  $("b-ask").addEventListener("click", askCrew);
+  $("b-chart").addEventListener("click", () => setChart(!S.chartOpen));
+  $("b-enter").addEventListener("click", enterPort);
+  const bs = $("b-survey");
+  bs.addEventListener("pointerdown", (e) => { e.preventDefault(); S.survey = true; });
+  addEventListener("pointerup", () => { if (!keys.has(" ")) S.survey = false; });
 
   /* ═══ 순환 ════════════════════════════════════════════════ */
-  let last = performance.now(), bearTimer = 0;
+  let last = performance.now(), sayWho = "";
 
   function frame(now) {
     const dt = Math.max(0, Math.min(0.08, (now - last) / 1000));
@@ -1154,12 +1257,11 @@
     }
 
     drawSea(now / 1000);
+    drawCompass();
     drawMinimap();
+    if (S.say.who !== sayWho) { sayWho = S.say.who; drawPortrait(); }
     if (S.chartOpen) drawChart();
-    updateHUD(dt);
-
-    bearTimer -= dt;
-    if (bearTimer <= 0) { renderBearings(); bearTimer = 0.4; }
+    updateBand();
 
     requestAnimationFrame(frame);
   }
@@ -1167,7 +1269,7 @@
   function fit(cv) {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const r = cv.getBoundingClientRect();
-    if (!r.width) return false;
+    if (!r.width || !r.height) return false;
     cv.width = Math.round(r.width * dpr);
     cv.height = Math.round(r.height * dpr);
     cv.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1175,16 +1277,16 @@
   }
   function resize() {
     if (fit(sea)) { const r = sea.getBoundingClientRect(); SW = r.width; SH = r.height; HZ = SH * 0.44; }
-    fit(mini);
+    fit(mini); fit(compass);
+    if (fit(portrait)) drawPortrait();
     if (S.chartOpen) layoutChart();
   }
 
-  new ResizeObserver(resize).observe($("screen"));
+  new ResizeObserver(resize).observe($("stage"));
   addEventListener("resize", resize);
 
   resize();
-  renderBearings();
-  log("리스보아를 나섰다. 항해장이 아는 곳은 세 군데뿐이다.");
+  note("리스보아를 나섰다.");
   requestAnimationFrame(frame);
 })();
 </script>
