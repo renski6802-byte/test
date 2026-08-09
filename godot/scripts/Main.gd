@@ -9,6 +9,7 @@ const BAND_RATIO := 22.0
 var voyage: Voyage
 var fog: Fog
 var sky_dome: SkyDome
+var stars: StarField
 var ocean: Ocean
 var rig: CameraRig
 var ship: Node3D
@@ -248,6 +249,10 @@ func _build_world() -> void:
 	ocean.name = "Ocean"
 	_viewport.add_child(ocean)
 
+	stars = StarField.new()
+	stars.name = "Stars"
+	_viewport.add_child(stars)
+
 	_viewport.add_child(CoastMesh.build())
 
 	ship = ShipModel.build()
@@ -422,9 +427,13 @@ func _update_sky() -> void:
 
 	# 안개는 지평 언저리 하늘을 따라간다. 다만 하늘색 그대로 쓰면 먼바다가
 	# 수평선에서 하늘에 녹아 사라진다. 실제로는 멀어져도 물빛이 남는다.
-	var horizon := Color(0.166, 0.216, 0.338).lerp(Color(0.639, 0.757, 0.855), day)
+	var horizon := Color(0.118, 0.156, 0.246).lerp(Color(0.639, 0.757, 0.855), day)
 	horizon = horizon.lerp(Color(0.882, 0.545, 0.310), dusk * 0.55)
 	_env.fog_light_color = horizon.lerp(Color(0.10, 0.20, 0.30), 0.52)
+
+	# 별은 천구에 박혀 있고 배를 따라다닌다. 낮에는 하늘에 묻혀 안 보인다.
+	stars.orient(voyage.hours, voyage.lat, rig.camera.global_position,
+		clampf(1.0 - day * 1.35, 0.0, 1.0))
 
 
 func _update_hud() -> void:

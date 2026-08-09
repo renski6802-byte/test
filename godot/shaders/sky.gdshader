@@ -5,8 +5,8 @@ shader_type sky;
 
 #include "res://shaders/sky_common.gdshaderinc"
 
-uniform float sun_size = 0.9955;    // cos(반지름). 클수록 작은 원반.
-uniform float moon_size = 0.9990;
+uniform float sun_size = 0.99999;   // cos(반지름). 해의 실제 반지름은 0.27도다.
+uniform float moon_size = 0.99999;
 
 void sky() {
 	vec3 dir = normalize(EYEDIR);
@@ -17,13 +17,13 @@ void sky() {
 	// 해 원반. 지평에 걸리면 붉어지고 커 보인다.
 	float cs = dot(dir, sun_dir);
 	float low = 1.0 - clamp(sun_alt, 0.0, 1.0);
-	float disc = smoothstep(sun_size - 0.0016, sun_size + 0.0004, cs);
+	float disc = smoothstep(sun_size - 0.000018, sun_size + 0.000002, cs);
 	vec3 disc_tint = mix(sun_tint, dusk_color, low * low * 0.9);
 	col += disc_tint * disc * mix(3.0, 12.0, day);
 
 	// 달 원반
 	float cm = dot(dir, moon_dir);
-	float mdisc = smoothstep(moon_size - 0.0006, moon_size + 0.0002, cm);
+	float mdisc = smoothstep(moon_size - 0.000016, moon_size + 0.000002, cm);
 	col += moon_tint * mdisc * 2.2 * moon_up * (1.0 - day * 0.85);
 
 	COLOR = col;

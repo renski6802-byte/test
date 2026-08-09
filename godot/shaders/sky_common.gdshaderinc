@@ -17,8 +17,8 @@ group_uniforms sky_palette;
 uniform vec3 day_zenith : source_color = vec3(0.146, 0.320, 0.660);
 uniform vec3 day_horizon : source_color = vec3(0.560, 0.700, 0.850);
 uniform vec3 dusk_color : source_color = vec3(0.900, 0.470, 0.230);
-uniform vec3 night_zenith : source_color = vec3(0.108, 0.158, 0.288);
-uniform vec3 night_horizon : source_color = vec3(0.166, 0.216, 0.338);
+uniform vec3 night_zenith : source_color = vec3(0.072, 0.106, 0.196);
+uniform vec3 night_horizon : source_color = vec3(0.118, 0.156, 0.246);
 uniform vec3 sun_tint : source_color = vec3(1.000, 0.930, 0.800);
 uniform vec3 moon_tint : source_color = vec3(0.640, 0.740, 1.000);
 
@@ -54,7 +54,7 @@ vec3 sky_color(vec3 dir) {
 	// 물도 이 식을 보므로 세게 잡으면 바다가 통째로 은색이 된다.
 	// 물 위의 반짝임은 빛의 반사가 따로 맡는다.
 	float low = 1.0 - clamp(sun_alt, 0.0, 1.0);
-	col += hor * sky_hg(cs, 0.70) * (0.35 + 1.30 * low) * day;
+	col += hor * sky_hg(cs, 0.72) * (0.13 + 0.55 * low) * day;
 
 	// 지평 근처의 뿌연 띠. 대기를 길게 지나오면 색이 빠진다.
 	col = mix(col, mix(col, hor, 0.55), horizon_t * horizon_t * day * 0.8);
@@ -66,7 +66,7 @@ vec3 sky_color(vec3 dir) {
 	// 달빛 후광. 밤에만.
 	float cm = dot(dir, moon_dir);
 	col += moon_tint * pow(clamp(cm, 0.0, 1.0), 20.0) * 0.16 * moon_up * (1.0 - day);
-	col += moon_tint * sky_hg(cm, 0.45) * 0.06 * moon_up * (1.0 - day);
+	col += moon_tint * sky_hg(cm, 0.55) * 0.035 * moon_up * (1.0 - day);
 
 	// 수평선 아래는 볼 일이 거의 없지만, 바다 끝과 이어지는 자리라 곱게 떨어뜨린다.
 	col *= mix(1.0, 0.55, clamp(-up * 3.0, 0.0, 1.0));
