@@ -15,7 +15,9 @@ const ROWS := 22                 ## 물가에서 안쪽으로 몇 겹
 ## 가장 안쪽까지의 거리(지리). 짧으면 땅의 끝이 하늘과 만나 자른 자국이 보인다.
 ## 멀리까지 깔아두고 대기 원근으로 녹인다.
 const INLAND_MAX := 60000.0
-const SHORE_WANDER := 700.0      ## 해안선을 노이즈로 흔드는 폭. 곶과 만이 생긴다.
+## 해안선을 노이즈로 흔들면 곶과 만이 생겨 보기 좋지만, 눈에 보이는 물가와
+## 충돌 판정선이 어긋나 배가 육지 위로 올라간다. 흔들기는 능선에만 맡긴다.
+const SHORE_WANDER := 0.0
 
 var _mesh: MeshInstance3D
 var _mat: ShaderMaterial
@@ -28,19 +30,24 @@ func _ready() -> void:
 	_mat = ShaderMaterial.new()
 	_mat.shader = load("res://shaders/land.gdshader")
 	_mat.set_shader_parameter("grain", _grain(256))
-	_mat.set_shader_parameter("land_scale", Geo.LAND_SCALE)
-	_mat.set_shader_parameter("height_scale", Geo.LAND_HEIGHT_SCALE)
+	_mat.set_shader_parameter("near_scale", Geo.LAND_NEAR_SCALE)
+	_mat.set_shader_parameter("far_scale", Geo.LAND_SCALE)
 	_mesh.material_override = _mat
+	# 그림자를 끈다. 눌린 육지는 배 바로 옆에 선 벽이나 마찬가지여서, 켜두면
+	# 한낮에도 배가 육지 그늘에 들어가 새까매진다.
+	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# 셰이더가 정점을 옮기므로 원래 상자로는 화면 밖으로 판정되어 사라진다
+	_mesh.custom_aabb = AABB(Vector3(-6000, -400, -6000), Vector3(12000, 800, 12000))
 	add_child(_mesh)
 
 ## 배가 어디에 있는지 알려주면 그 자리를 기준으로 육지를 눌러 놓는다.
+## 누르는 일은 셰이더가 한다. 여기서는 배 자리로 옮기고 그 자리를 알려주기만 한다.
 func follow(ship_world: Vector3, ship_lon: float, ship_lat: float, t: float) -> void:
-	var ls := Geo.LAND_SCALE
-	var b := Basis(Vector3(ls, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, ls))
-	var here := Geo.to_metres(ship_lon, ship_lat)
-	var flat := Vector3(ship_world.x, 0.0, ship_world.z)
-	global_transform = Transform3D(b, flat - b * here)
+	global_transform = Transform3D(Basis.IDENTITY,
+		Vector3(ship_world.x, 0.0, ship_world.z))
 	if _mat:
+		var here := Geo.to_metres(ship_lon, ship_lat)
+		_mat.set_shader_parameter("ship_geo", Vector2(here.x, here.z))
 		_mat.set_shader_parameter("wave_time", t)
 
 ## 하늘 셰이더와 같은 값을 봐야 육지가 물러나는 색이 하늘과 어긋나지 않는다.
@@ -149,6 +156,26 @@ static func _ridge_strength(kind: int) -> float:
 		_:
 			return 0.40
 
+## 이 자리에서 뭍 쪽으로 얼마나 뻗을 수 있는가(m).
+##
+## 곶에서는 두 구간의 뭍 방향이 90도 어긋난다. 그런데도 모두 60km 씩 밀어붙이면
+## 상비센트 곶 같은 데서 안쪽 줄이 부챗살처럼 퍼져 나가, 바다 한가운데에
+## 130m 짜리 절벽이 서 버린다. 실제로 뭍인 데까지만 뻗게 자른다.
+static func _reach(at: Vector3, nrm: Vector3) -> float:
+	var lo := 0.0
+	var hi := INLAND_MAX
+	var g := Geo.geo_of_metres(at.x + nrm.x * hi, at.z + nrm.z * hi)
+	if Geo.on_land(g.x, g.y):
+		return hi
+	for _i in 7:                      # 이분법. 60km 를 500m 아래까지 좁힌다.
+		var mid := (lo + hi) * 0.5
+		var q := Geo.geo_of_metres(at.x + nrm.x * mid, at.z + nrm.z * mid)
+		if Geo.on_land(q.x, q.y):
+			lo = mid
+		else:
+			hi = mid
+	return maxf(lo, 1200.0)
+
 func _build() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -197,11 +224,13 @@ static func _add_coast(st: SurfaceTool, coast: Array, kinds: Array) -> void:
 			var amp: float = lerpf(lo, hi, wobble) * Geo.LAND_HEIGHT_SCALE
 			# 해안선 자체를 흔들어 곶과 만을 만든다
 			var wander := (_fbm(Vector2(pos.x, pos.z) / 9000.0, 2) - 0.5) * 2.0
+			var at: Vector3 = pos + nrm * wander * SHORE_WANDER
 			pts.append({
-				"pos": pos + nrm * wander * SHORE_WANDER,
+				"pos": at,
 				"nrm": nrm,
 				"kind": kind,
 				"amp": amp,
+				"reach": _reach(at, nrm),
 			})
 
 	if pts.size() < 2:
@@ -216,7 +245,7 @@ static func _add_coast(st: SurfaceTool, coast: Array, kinds: Array) -> void:
 		var row: Array = []
 		for c in cols:
 			var e: Dictionary = pts[c]
-			var base: Vector3 = e.pos + e.nrm * inland
+			var base: Vector3 = e.pos + e.nrm * (inland * e.reach / INLAND_MAX)
 			var h: float = e.amp * _profile(t, e.kind)
 			# 능선과 골짜기. 물가에서는 0 이라야 해안선이 깨끗하다.
 			var mask := smoothstep(0.0, 0.14, t)

@@ -32,13 +32,20 @@ const WORLD_SCALE := 1.0 / 370.0
 ## 열린 바다에는 견줄 눈금이 없어 아무도 못 알아챈다.
 const LAND_SCALE := 1.0 / 25.0
 
+## 물가 쪽에서 쓰는 육지 축척. 바다(1/370)와 먼 육지(1/25) 사이다.
+##
+## 먼 육지를 1/25 로 두면 해안이 배보다 열다섯 배 빨리 다가와 물가가 미끄러진다.
+## 가까운 곳만 바다 쪽으로 당겨 그 어긋남을 세 배로 줄인다.
+const LAND_NEAR_SCALE := 1.0 / 40.0
+
 ## 육지 높이에 따로 먹이는 축척.
 ##
-## 가로만 1/25 로 누르고 높이를 실제로 두면 비탈이 25배 가팔라져 땅이 벽이 된다.
-## 그렇다고 가로와 같은 값을 먹이면 산이 1cm 가 되어 물에 뜬 판때기가 된다.
-## 그 사이에서 고른 값이다 — 절벽은 19도 비탈로 서고, 26km 밖에서 1도쯤 되는
-## 띠로 보이다가 다가올수록 벽처럼 커진다.
-const LAND_HEIGHT_SCALE := 1.0 / 4.0
+## 1 이다. 곧 메시는 실제 높이를 그대로 담는다.
+##
+## 누르는 일은 셰이더가 한다(land.gdshader 의 slope_ease). 여기서 미리 1/4 로
+## 줄여놨더니 셰이더가 한 번 더 눌러, 3km 앞 해안이 1.6m 짜리 둔덕이 되어
+## 파도에 잠겼다. 축척은 한 군데서만 먹인다.
+const LAND_HEIGHT_SCALE := 1.0
 
 const KM_LAT := 111.19
 
@@ -108,16 +115,29 @@ static func coast_types(coast: Array) -> Array:
 	return TYPE_IB if coast == COAST_IB else TYPE_AF
 
 ## 충돌 판정에 쓰는 닫힌 다각형 (해안선 + 지도 바깥쪽 변)
+##
+## 한 번 만들어 두고 쓴다. 부를 때마다 새로 뜨면 육지 메시를 세울 때
+## 수십만 번 배열을 복사하게 되어 그것만으로 몇 초가 날아간다.
+static var _poly_ib: Array = []
+static var _poly_af: Array = []
+
 static func poly_iberia() -> Array:
-	var p := COAST_IB.duplicate()
-	p.append(Vector2(-5.20, 39.60))
-	return p
+	if _poly_ib.is_empty():
+		_poly_ib = COAST_IB.duplicate()
+		_poly_ib.append(Vector2(-5.20, 39.60))
+	return _poly_ib
 
 static func poly_africa() -> Array:
-	var p := COAST_AF.duplicate()
-	p.append(Vector2(-8.00, 33.40))
-	p.append(Vector2(-5.20, 33.40))
-	return p
+	if _poly_af.is_empty():
+		_poly_af = COAST_AF.duplicate()
+		_poly_af.append(Vector2(-8.00, 33.40))
+		_poly_af.append(Vector2(-5.20, 33.40))
+	return _poly_af
+
+## 축척 없는 지리 미터 → 경위도. to_metres 의 역.
+static func geo_of_metres(x: float, z: float) -> Vector2:
+	var lat := ORIGIN_LAT + (-z) / (KM_LAT * 1000.0)
+	return Vector2(ORIGIN_LON + x / (km_per_deg_lon(lat) * 1000.0), lat)
 
 ## 항구. region 이 다르면 그 지역을 아는 선원을 태워야 방향을 물을 수 있다.
 const PORTS := [

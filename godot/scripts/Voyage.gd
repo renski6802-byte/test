@@ -18,9 +18,10 @@ const CLOCK := 1440.0
 ##   0.25배 = 하루 4분, 배가 초당 5m (실제 10노트 그대로)
 ##   1배    = 하루 1분, 배가 초당 20m
 ##   4배    = 하루 15초
-const TIME_SCALES := [0.25, 0.5, 1.0, 2.0, 4.0]
+const TIME_SCALES := [0.1, 0.25, 0.5, 1.0, 2.0, 4.0]
 const CRUISE_SCALE := 1.0
 const CAREFUL_SCALE := 0.5      ## 무슨 일이 생기면 여기까지 내린다
+const COAST_SCALE := 0.1        ## 여울에 들어서면 여기까지. 하루가 10분이 된다.
 
 const BASE_KN := 4.2            ## 돛 한 단당. 전개하면 두 배
 
@@ -40,6 +41,7 @@ const TURN_STEERAGE := 0.35     ## 돛을 내렸을 때 남는 선회력
 ## 가면 안 되는 것이 되고, 접근 자체가 실수가 된다.
 const GROUND_WARN_KM := 8.0     ## 여기부터 경고
 const GROUND_HIT_KM := 3.0      ## 여기부터 긁힌다
+const GROUND_STOP_KM := 1.2     ## 여기서는 아예 못 들어간다. 배가 뭍에 올라앉는다.
 const HULL_MAX := 100.0
 const HULL_RATE := 14.0         ## 가장 얕은 곳에서 게임 한 시간에 깎이는 내구도
 
@@ -175,19 +177,25 @@ func step(dt: float) -> void:
 		var nlon := lon + sin(deg_to_rad(heading)) * km / Geo.km_per_deg_lon(lat)
 		var nlat := lat + cos(deg_to_rad(heading)) * km / Geo.KM_LAT
 		# 해안에 닿아도 세우지 않는다. 갈 수 있는 쪽으로 미끄러지게 둔다.
-		if not Geo.on_land(nlon, nlat):
+		# 다만 물가 코앞은 막는다 — 안 막으면 배가 뭍 위로 올라앉는다.
+		var was := Vector2(lon, lat)
+		if not _blocked(nlon, nlat):
 			lon = nlon
 			lat = nlat
-		elif not Geo.on_land(nlon, lat):
+		elif not _blocked(nlon, lat):
 			lon = nlon
-		elif not Geo.on_land(lon, nlat):
+		elif not _blocked(lon, nlat):
 			lat = nlat
-		elif hours - _last_ground > 2.0:
+		lon = clamp(lon, Geo.LON_MIN, Geo.LON_MAX)
+		lat = clamp(lat, Geo.LAT_MIN, Geo.LAT_MAX)
+
+		# 뱃머리가 물가를 정면으로 밀고 있으면 옆으로 미끄러질 것도 없어서
+		# 아무 말 없이 제자리에 선 채 선체만 깎인다. 그건 알려줘야 한다.
+		var went := Geo.dist_km(was.x, was.y, lon, lat)
+		if went < km * 0.15 and hours - _last_ground > 2.0:
 			_last_ground = hours
 			noted.emit("물이 얕다. 뱃머리를 돌려야 한다.", "warn")
 			_release("얕은 물")
-		lon = clamp(lon, Geo.LON_MIN, Geo.LON_MAX)
-		lat = clamp(lat, Geo.LAT_MIN, Geo.LAT_MAX)
 
 	hours += dt_h
 	_reveal()
@@ -204,6 +212,16 @@ func _reveal() -> void:
 	revealed.emit(lon, lat, r)
 
 # ── 좌초 ────────────────────────────────────────────────────────
+## 배가 들어갈 수 없는 자리인가. 뭍이거나 물가 코앞이면 못 간다.
+## 항구는 원래 해안에 붙어 있으므로 입항 길은 열어둔다.
+func _blocked(l: float, t: float) -> bool:
+	if Geo.on_land(l, t):
+		return true
+	for p in Geo.ports():
+		if Geo.dist_km(l, t, p.lon, p.lat) < arrive_km() * 1.6:
+			return false
+	return Geo.coast_dist_km(l, t) < GROUND_STOP_KM
+
 ## 해안에 붙으면 긁힌다. 배가 지리에 비해 크므로 실제로 얹히기 전에 경고가 온다.
 func _check_ground(dt_h: float) -> void:
 	# 항구는 원래 해안에 붙어 있다. 입항하러 들어가는 길을 좌초로 잡으면 안 된다.
@@ -221,7 +239,10 @@ func _check_ground(dt_h: float) -> void:
 	if not _ground_warned:
 		_ground_warned = true
 		noted.emit("여울이다. 뱃머리를 바다 쪽으로 돌려라.", "warn")
-		_release("여울")
+		# 여기서는 순항으로도 초당 몇백 미터라 손쓸 틈이 없다. 크게 내린다.
+		if time_scale > COAST_SCALE:
+			set_time_scale(COAST_SCALE, "여울")
+			noted.emit("배속을 크게 늦췄다 — 여울", "warn")
 
 	if d >= GROUND_HIT_KM:
 		return
