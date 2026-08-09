@@ -161,8 +161,9 @@ func add_note(text: String, kind: String) -> void:
 		_notes_box.remove_child(old)
 		old.queue_free()
 
-func refresh(v: Voyage) -> void:
-	compass.set_state(v.heading, v.wind_brg, v.ordered_heading)
+## view_brg 는 카메라가 보고 있는 방위. 나침반의 위쪽이 그쪽이 된다.
+func refresh(v: Voyage, view_brg := NAN) -> void:
+	compass.set_state(v.heading, v.wind_brg, v.ordered_heading, view_brg)
 	_wind.text = "바람 %s" % v.wind_label()
 	var scale := "" if v.time_scale <= 1.0 else "  ×%d" % int(v.time_scale)
 	_speed.text = "%.1f노트 · %s%s" % [v.speed_knots(), v.clock(), scale]

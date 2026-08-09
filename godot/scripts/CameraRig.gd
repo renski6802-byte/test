@@ -92,6 +92,10 @@ func recenter() -> void:
 	yaw = 0.0
 	pitch = 13.0
 
+## 지금 화면에 그려진 좌우 각. 나침반과 조타가 이 값을 기준으로 삼는다.
+func view_yaw() -> float:
+	return _yaw
+
 func is_off_center() -> bool:
 	return absf(_yaw) > 4.0
 

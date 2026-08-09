@@ -353,7 +353,7 @@ func _process(delta: float) -> void:
 	_update_wake()
 	_update_sky()
 	_update_hud()
-	band.refresh(voyage)
+	band.refresh(voyage, voyage.heading + rig.view_yaw())
 
 ## 뱃머리가 가르는 물살과 물보라. 둘 다 속력을 그대로 따라간다.
 func _update_wake() -> void:

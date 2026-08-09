@@ -54,7 +54,7 @@ vec3 sky_color(vec3 dir) {
 	// 물도 이 식을 보므로 세게 잡으면 바다가 통째로 은색이 된다.
 	// 물 위의 반짝임은 빛의 반사가 따로 맡는다.
 	float low = 1.0 - clamp(sun_alt, 0.0, 1.0);
-	col += hor * sky_hg(cs, 0.72) * (0.13 + 0.55 * low) * day;
+	col += hor * sky_hg(cs, 0.86) * (0.05 + 0.30 * low) * day;
 
 	// 지평 근처의 뿌연 띠. 대기를 길게 지나오면 색이 빠진다.
 	col = mix(col, mix(col, hor, 0.55), horizon_t * horizon_t * day * 0.8);
