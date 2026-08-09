@@ -9,7 +9,11 @@ extends Node3D
 ## 위아래(pitch)는 음수까지 간다. 올려다보면 수평선이 화면 아래로 내려가고 하늘이
 ## 화면을 채운다. 예전에는 아래 한계가 -4도라 수평선이 늘 화면 한가운데 걸려 있었다.
 
-const YAW_LIMIT := 179.0
+## 좌우는 한계가 없다. 끄는 만큼 계속 돈다.
+##
+## 예전에는 ±179도에서 막아뒀는데, 반 바퀴 돌고 나면 더 안 돌아가 손이 걸렸다.
+## 각도는 감지 않고 그냥 쌓아둔다. 감으면 부드럽게 따라가는 계산이 ±180도
+## 경계에서 반대로 한 바퀴 돌아버린다. 삼각함수는 값이 커도 상관하지 않는다.
 const PITCH_MIN := -28.0        ## 음수 = 올려다봄
 const PITCH_MAX := 70.0        ## 더 올리면 지도처럼 내려다보게 된다
 const DIST_MIN := 14.0
@@ -88,8 +92,10 @@ func place(target: Vector3, ship_heading_deg: float, delta := 0.0) -> void:
 	camera.global_position = eye
 	camera.look_at(pivot, Vector3.UP)
 
+## 정면으로 되돌린다. 지금 자리에서 가장 가까운 정면으로 가야
+## 여러 바퀴 돌아둔 뒤에도 빙글빙글 되감기지 않는다.
 func recenter() -> void:
-	yaw = 0.0
+	yaw = round(_yaw / 360.0) * 360.0
 	pitch = 13.0
 
 ## 지금 화면에 그려진 좌우 각. 나침반과 조타가 이 값을 기준으로 삼는다.
@@ -97,7 +103,7 @@ func view_yaw() -> float:
 	return _yaw
 
 func is_off_center() -> bool:
-	return absf(_yaw) > 4.0
+	return absf(wrapf(_yaw, -180.0, 180.0)) > 4.0
 
 ## 화면의 한 점이 어느 쪽인지 — 뱃머리 기준 상대 방위(도).
 ## 지금 화면에 그려진 각(_yaw)을 써야 눈에 보이는 대로 조타된다.
@@ -133,7 +139,7 @@ func handle_input(event: InputEvent, in_scene: bool) -> bool:
 	elif event is InputEventMouseMotion and _dragging:
 		var mm := event as InputEventMouseMotion
 		# 배를 손으로 돌린다고 생각하면 된다. 왼쪽으로 끌면 배의 오른쪽 면이 돌아온다.
-		yaw = clampf(yaw + mm.relative.x * YAW_PER_PX, -YAW_LIMIT, YAW_LIMIT)
+		yaw += mm.relative.x * YAW_PER_PX
 		pitch = clampf(pitch + mm.relative.y * PITCH_PER_PX, PITCH_MIN, PITCH_MAX)
 		return true
 

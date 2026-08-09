@@ -446,8 +446,9 @@ func _update_hud() -> void:
 
 	_camhint.visible = rig.is_off_center()
 	if _camhint.visible:
-		var side := "왼쪽" if rig.yaw < 0.0 else "오른쪽"
-		_camhint.text = "%s %d° 보는 중 — C 또는 가운데 버튼으로 정면" % [side, int(absf(rig.yaw))]
+		var off := wrapf(rig.view_yaw(), -180.0, 180.0)
+		var side := "왼쪽" if off < 0.0 else "오른쪽"
+		_camhint.text = "%s %d° 보는 중 — C 또는 가운데 버튼으로 정면" % [side, int(absf(off))]
 
 	var p = voyage.near_port
 	_prompt.visible = p != null and not _chart_layer.visible
