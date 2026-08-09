@@ -6,9 +6,9 @@ shader_type sky;
 #include "res://shaders/sky_common.gdshaderinc"
 
 // cos(반지름). 실제 해와 달은 반지름 0.27도로, 새끼손톱 끝만 하다.
-// 해는 조금만 키운다 — 많이 키우면 곧바로 가짜로 보인다.
-// 달은 눈에 남는 크기가 실제보다 훨씬 크므로 두 배 반 넘게 키웠다.
-uniform float sun_size = 0.9999834;    // 반지름 0.33도
+// 눈에 남는 해와 달은 그보다 훨씬 크므로 셋 배쯤 키웠다.
+// 해가 달보다 아주 조금 크다.
+uniform float sun_size = 0.9998976;    // 반지름 0.82도
 uniform float moon_size = 0.9999210;   // 반지름 0.72도
 
 void sky() {
@@ -20,7 +20,7 @@ void sky() {
 	// 해 원반. 지평에 걸리면 붉어지고 커 보인다.
 	float cs = dot(dir, sun_dir);
 	float low = 1.0 - clamp(sun_alt, 0.0, 1.0);
-	float disc = smoothstep(sun_size - 0.0000062, sun_size + 0.0000008, cs);
+	float disc = smoothstep(sun_size - 0.0000084, sun_size + 0.0000041, cs);
 	vec3 disc_tint = mix(sun_tint, dusk_color, low * low * 0.9);
 	// 원반을 후광보다 확실히 밝게 둬야 무리에 잡아먹히지 않는다
 	col += disc_tint * disc * mix(5.0, 15.0, day);
