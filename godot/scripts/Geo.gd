@@ -38,7 +38,7 @@ const LAND_SCALE := 1.0 / 25.0
 ## 그렇다고 가로와 같은 값을 먹이면 산이 1cm 가 되어 물에 뜬 판때기가 된다.
 ## 그 사이에서 고른 값이다 — 절벽은 19도 비탈로 서고, 26km 밖에서 1도쯤 되는
 ## 띠로 보이다가 다가올수록 벽처럼 커진다.
-const LAND_HEIGHT_SCALE := 1.0 / 8.0
+const LAND_HEIGHT_SCALE := 1.0 / 4.0
 
 const KM_LAT := 111.19
 

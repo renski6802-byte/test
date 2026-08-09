@@ -373,7 +373,7 @@ func _process(delta: float) -> void:
 	rig.place(ship.global_position, voyage.heading, delta)
 	ocean.follow(ship.global_position)
 	# 육지는 바다와 다른 축척이라 배를 기준으로 따로 눌러 놓는다
-	coast.follow(ship.global_position, voyage.lon, voyage.lat)
+	coast.follow(ship.global_position, voyage.lon, voyage.lat, _time)
 	_place_far_sails()
 	_update_wake()
 	_update_sky()
@@ -424,7 +424,7 @@ func _update_sky() -> void:
 	var dusk := sky_dome.dusk01()
 
 	# 하늘과 바다가 같은 값을 봐야 물에 비친 하늘이 실제 하늘과 어긋나지 않는다
-	var mats: Array = [_sky]
+	var mats: Array = [_sky, coast.sky_material()]
 	mats.append_array(ocean.sky_materials())
 	sky_dome.push(mats)
 

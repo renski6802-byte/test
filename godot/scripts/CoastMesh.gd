@@ -3,98 +3,269 @@ extends Node3D
 
 ## 해안선 자료를 바다에서 본 땅으로 세운다.
 ##
-## 안쪽은 그릴 필요가 없다. 배에서 보이는 건 물가에서 솟아오르는 능선뿐이라,
-## 해안선을 따라 띠 두 장(물가→능선, 능선→고원)만 세우면 충분하다.
+## 예전엔 해안선 점 오십 개로 띠 두 장을 세웠다. 실루엣만 있고 표면이 없어서
+## 바다에 셰이더를 붙이기 전과 같은 상태였다. 지금은 해안선을 따라 조밀한 격자를
+## 깔고 노이즈로 능선과 골짜기를 실제로 깎는다. 표면은 land.gdshader 가 맡는다.
 ##
 ## 육지는 바다와 다른 축척을 쓴다. 그래서 메시를 축척 없는 지리 미터로 만들어
-## 두고, 매 프레임 배를 기준으로 눌러 놓는다. 가로만 누르고 높이는 그대로 둔다 —
-## 실제 300m 절벽이 화면에서도 300m 로 서야 배(26m) 옆에서 위압적으로 보인다.
+## 두고, 매 프레임 배를 기준으로 눌러 놓는다. 가로만 누르고 높이는 따로 누른다.
+
+const ALONG_STEP := 500.0        ## 해안을 따라 몇 미터마다 자를 것인가(지리)
+const ROWS := 22                 ## 물가에서 안쪽으로 몇 겹
+## 가장 안쪽까지의 거리(지리). 짧으면 땅의 끝이 하늘과 만나 자른 자국이 보인다.
+## 멀리까지 깔아두고 대기 원근으로 녹인다.
+const INLAND_MAX := 60000.0
+const SHORE_WANDER := 700.0      ## 해안선을 노이즈로 흔드는 폭. 곶과 만이 생긴다.
 
 var _mesh: MeshInstance3D
+var _mat: ShaderMaterial
 
 func _ready() -> void:
 	_mesh = MeshInstance3D.new()
 	_mesh.name = "Land"
 	_mesh.mesh = _build()
-	var mat := StandardMaterial3D.new()
-	# 색은 지형 종류마다 다르므로 꼭짓점에 실어 보낸다
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.94
-	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_mesh.material_override = mat
+
+	_mat = ShaderMaterial.new()
+	_mat.shader = load("res://shaders/land.gdshader")
+	_mat.set_shader_parameter("grain", _grain(256))
+	_mat.set_shader_parameter("land_scale", Geo.LAND_SCALE)
+	_mat.set_shader_parameter("height_scale", Geo.LAND_HEIGHT_SCALE)
+	_mesh.material_override = _mat
 	add_child(_mesh)
 
 ## 배가 어디에 있는지 알려주면 그 자리를 기준으로 육지를 눌러 놓는다.
-##
-## 배에서 지리적으로 D 만큼 떨어진 해안은 화면에서 D × LAND_SCALE 만큼 떨어진다.
-## 배 자신은 바다 축척을 쓰므로 둘의 접근 속도가 다른데, 육지가 보이면 배속이
-## 저절로 내려가서 눈에 띄지 않는다.
-func follow(ship_world: Vector3, ship_lon: float, ship_lat: float) -> void:
+func follow(ship_world: Vector3, ship_lon: float, ship_lat: float, t: float) -> void:
 	var ls := Geo.LAND_SCALE
 	var b := Basis(Vector3(ls, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, ls))
 	var here := Geo.to_metres(ship_lon, ship_lat)
 	var flat := Vector3(ship_world.x, 0.0, ship_world.z)
 	global_transform = Transform3D(b, flat - b * here)
+	if _mat:
+		_mat.set_shader_parameter("wave_time", t)
+
+## 하늘 셰이더와 같은 값을 봐야 육지가 물러나는 색이 하늘과 어긋나지 않는다.
+func sky_material() -> ShaderMaterial:
+	return _mat
+
+# ── 노이즈 ──────────────────────────────────────────────────────
+## 자리만 넣으면 늘 같은 값이 나오는 난수. 지형을 저장하지 않고 다시 만들 수 있다.
+static func _hash2(x: int, y: int) -> float:
+	var h := x * 374761393 + y * 668265263
+	h = (h ^ (h >> 13)) * 1274126177
+	return float((h ^ (h >> 16)) & 0xFFFFFF) / 16777215.0
+
+static func _vnoise(p: Vector2) -> float:
+	var i := Vector2(floor(p.x), floor(p.y))
+	var f := p - i
+	f = f * f * (Vector2(3, 3) - 2.0 * f)
+	var a := _hash2(int(i.x), int(i.y))
+	var b := _hash2(int(i.x) + 1, int(i.y))
+	var c := _hash2(int(i.x), int(i.y) + 1)
+	var d := _hash2(int(i.x) + 1, int(i.y) + 1)
+	return lerpf(lerpf(a, b, f.x), lerpf(c, d, f.x), f.y)
+
+static func _fbm(p: Vector2, octaves: int) -> float:
+	var sum := 0.0
+	var amp := 0.5
+	var q := p
+	for _i in octaves:
+		sum += _vnoise(q) * amp
+		q *= 2.03
+		amp *= 0.5
+	return sum
+
+## 셰이더가 쓸 타일 노이즈. 세 채널에 서로 다른 결을 담는다.
+static func _grain(size: int) -> ImageTexture:
+	var img := Image.create_empty(size, size, true, Image.FORMAT_RGB8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 991117
+	# 옥타브의 주기가 텍스처 크기를 정확히 나눠야 타일 경계가 이어진다
+	var layers := [[6, 12, 24], [10, 20, 40], [16, 32, 64]]
+	var grids: Array = []
+	for chan in layers:
+		var per_chan: Array = []
+		for n in chan:
+			var g := PackedFloat32Array()
+			g.resize(n * n)
+			for i in n * n:
+				g[i] = rng.randf()
+			per_chan.append([n, g])
+		grids.append(per_chan)
+
+	var sample := func(cell: Array, u: float, v: float) -> float:
+		var n: int = cell[0]
+		var g: PackedFloat32Array = cell[1]
+		var fx := u * float(n)
+		var fy := v * float(n)
+		var x0 := int(fx) % n
+		var y0 := int(fy) % n
+		var x1 := (x0 + 1) % n
+		var y1 := (y0 + 1) % n
+		var tx: float = fx - floor(fx)
+		var ty: float = fy - floor(fy)
+		tx = tx * tx * (3.0 - 2.0 * tx)
+		ty = ty * ty * (3.0 - 2.0 * ty)
+		return lerpf(lerpf(g[y0 * n + x0], g[y0 * n + x1], tx),
+			lerpf(g[y1 * n + x0], g[y1 * n + x1], tx), ty)
+
+	for y in size:
+		var v := float(y) / float(size)
+		for x in size:
+			var u := float(x) / float(size)
+			var c := Color()
+			for ch in 3:
+				var s := 0.0
+				var amp := 0.6
+				for cell in grids[ch]:
+					s += sample.call(cell, u, v) * amp
+					amp *= 0.5
+				c[ch] = clampf(s / 1.05, 0.0, 1.0)
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+# ── 형태 ────────────────────────────────────────────────────────
+## 안쪽으로 t(0~1) 만큼 들어간 자리의 높이 비율. 지형 종류가 모양을 정한다.
+static func _profile(t: float, kind: int) -> float:
+	match kind:
+		Geo.CLIFF:
+			# 물가에서 곧장 솟았다가 완만해진다
+			return smoothstep(0.0, 0.09, t) * (0.82 + 0.18 * t)
+		Geo.MOUNTAIN:
+			return smoothstep(0.0, 0.42, t) * (0.55 + 0.45 * t)
+		Geo.SAND:
+			return pow(t, 0.75)
+		_:
+			return smoothstep(0.0, 0.30, t) * (0.75 + 0.25 * t)
+
+static func _ridge_strength(kind: int) -> float:
+	match kind:
+		Geo.CLIFF:
+			return 0.55
+		Geo.MOUNTAIN:
+			return 0.95
+		Geo.SAND:
+			return 0.18
+		_:
+			return 0.40
 
 func _build() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for coast in [Geo.COAST_IB, Geo.COAST_AF]:
 		_add_coast(st, coast, Geo.coast_types(coast))
-	st.generate_normals()
 	return st.commit()
 
+## 해안선을 따라 조밀한 격자를 깔고 깎는다.
 static func _add_coast(st: SurfaceTool, coast: Array, kinds: Array) -> void:
 	var n := coast.size()
 	if n < 2:
 		return
 
-	var shore: Array = []
-	var ridge: Array = []
-	var plateau: Array = []
-	var tint: Array = []
+	# 해안선을 일정 간격으로 다시 뜬다. 원본 점 사이가 10~20km 라 그대로는 너무 성기다.
+	var pts: Array = []          # {pos, nrm, kind, amp}
+	for i in range(n - 1):
+		var g0: Vector2 = coast[i]
+		var g1: Vector2 = coast[i + 1]
+		var p0 := Geo.to_metres(g0.x, g0.y)
+		var p1 := Geo.to_metres(g1.x, g1.y)
+		var span := p0.distance_to(p1)
+		var steps: int = maxi(1, int(span / ALONG_STEP))
 
-	for i in n:
-		var g: Vector2 = coast[i]
-		var here := Geo.to_metres(g.x, g.y)
-		var kind: int = kinds[i] if i < kinds.size() else Geo.LOW
-		var t: Array = Geo.TERRAIN[kind]
+		var k0: int = kinds[i] if i < kinds.size() else Geo.LOW
+		var k1: int = kinds[i + 1] if i + 1 < kinds.size() else k0
+		var t0: Array = Geo.TERRAIN[k0]
+		var t1: Array = Geo.TERRAIN[k1]
 
-		# 해안선이 뻗는 방향
-		var a: Vector2 = coast[max(i - 1, 0)]
-		var b: Vector2 = coast[min(i + 1, n - 1)]
-		var dir := Geo.to_metres(b.x, b.y) - Geo.to_metres(a.x, a.y)
+		# 어느 쪽이 뭍인지 실제로 찍어보고 정한다
+		var dir := (p1 - p0)
 		dir.y = 0.0
-		if dir.length() < 0.001:
-			dir = Vector3(0, 0, -1)
-		dir = dir.normalized()
-
-		# 진행 방향의 수직. 어느 쪽이 뭍인지는 실제로 찍어보고 정한다.
+		dir = dir.normalized() if dir.length() > 0.001 else Vector3(0, 0, -1)
 		var nrm := Vector3(-dir.z, 0.0, dir.x)
-		var probe := Geo.to_geo(Geo.to_world(g.x, g.y) + nrm * 3000.0 * Geo.WORLD_SCALE)
+		var mid := (g0 + g1) * 0.5
+		var probe := Geo.to_geo(Geo.to_world(mid.x, mid.y) + nrm * 3000.0 * Geo.WORLD_SCALE)
 		if not Geo.on_land(probe.x, probe.y):
 			nrm = -nrm
 
-		var h := Geo.coast_height(g.x, g.y, kind)
-		shore.append(here)
-		ridge.append(here + nrm * float(t[2]) + Vector3(0, h, 0))
-		# 안쪽 띠는 능선보다 조금 높아야 한다. 낮으면 갑판처럼 위에서 내려다보게 되고,
-		# 바다에서 보이는 건 능선의 실루엣뿐이어야 한다.
-		plateau.append(here + nrm * float(t[3]) + Vector3(0, h * 1.15, 0))
-		tint.append(t[4])
+		for s in steps:
+			var f := float(s) / float(steps)
+			var pos := p0.lerp(p1, f)
+			var kind: int = k0 if f < 0.5 else k1
+			var lo: float = lerpf(float(t0[0]), float(t1[0]), f)
+			var hi: float = lerpf(float(t0[1]), float(t1[1]), f)
+			var wobble := _fbm(Vector2(pos.x, pos.z) / 5200.0, 3)
+			var amp: float = lerpf(lo, hi, wobble) * Geo.LAND_HEIGHT_SCALE
+			# 해안선 자체를 흔들어 곶과 만을 만든다
+			var wander := (_fbm(Vector2(pos.x, pos.z) / 9000.0, 2) - 0.5) * 2.0
+			pts.append({
+				"pos": pos + nrm * wander * SHORE_WANDER,
+				"nrm": nrm,
+				"kind": kind,
+				"amp": amp,
+			})
 
-	for i in range(n - 1):
-		_quad(st, shore[i], shore[i + 1], ridge[i + 1], ridge[i],
-			tint[i], tint[i + 1])
-		_quad(st, ridge[i], ridge[i + 1], plateau[i + 1], plateau[i],
-			tint[i], tint[i + 1])
+	if pts.size() < 2:
+		return
 
-static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3,
-		ca: Color, cb: Color) -> void:
-	# 물가 쪽을 조금 어둡게 해 젖은 바위처럼 보이게 한다
-	var wet_a := ca.darkened(0.28)
-	var wet_b := cb.darkened(0.28)
-	for v in [[a, wet_a], [b, wet_b], [c, cb], [a, wet_a], [c, cb], [d, ca]]:
-		st.set_color(v[1])
-		st.add_vertex(v[0])
+	# 격자를 세운다. 안쪽으로 갈수록 간격을 넓혀 물가 가까이를 촘촘하게.
+	var cols := pts.size()
+	var grid: Array = []
+	for r in ROWS:
+		var t := float(r) / float(ROWS - 1)
+		var inland := INLAND_MAX * pow(t, 1.8)
+		var row: Array = []
+		for c in cols:
+			var e: Dictionary = pts[c]
+			var base: Vector3 = e.pos + e.nrm * inland
+			var h: float = e.amp * _profile(t, e.kind)
+			# 능선과 골짜기. 물가에서는 0 이라야 해안선이 깨끗하다.
+			var mask := smoothstep(0.0, 0.14, t)
+			var q := Vector2(base.x, base.z)
+			var ridge := (_fbm(q / 3400.0, 4) - 0.45) * 2.0
+			var fine := (_fbm(q / 900.0, 3) - 0.5) * 0.9
+			h += (ridge + fine) * e.amp * _ridge_strength(e.kind) * mask
+			row.append(Vector3(base.x, maxf(h, 0.0), base.z))
+		grid.append(row)
+
+	# 법선은 격자 이웃에서 바로 구한다. generate_normals 는 이 크기에서 느리다.
+	var nrms: Array = []
+	for r in ROWS:
+		var row: Array = []
+		for c in cols:
+			var p: Vector3 = grid[r][c]
+			var pa: Vector3 = grid[r][maxi(c - 1, 0)]
+			var pb: Vector3 = grid[r][mini(c + 1, cols - 1)]
+			var pc: Vector3 = grid[maxi(r - 1, 0)][c]
+			var pd: Vector3 = grid[mini(r + 1, ROWS - 1)][c]
+			var nv := (pb - pa).cross(pd - pc).normalized()
+			if nv.y < 0.0:
+				nv = -nv
+			row.append(nv if nv.length() > 0.001 else Vector3.UP)
+		nrms.append(row)
+
+	# 바위 비율을 꼭짓점 색에 실어 셰이더에 넘긴다
+	var rock_of := func(kind: int) -> float:
+		match kind:
+			Geo.CLIFF:
+				return 0.85
+			Geo.MOUNTAIN:
+				return 0.65
+			Geo.SAND:
+				return 0.05
+			_:
+				return 0.25
+
+	for r in range(ROWS - 1):
+		for c in range(cols - 1):
+			var kc: float = rock_of.call(pts[c].kind)
+			var kn: float = rock_of.call(pts[c + 1].kind)
+			_tri(st, grid[r][c], nrms[r][c], kc, grid[r][c + 1], nrms[r][c + 1], kn,
+				grid[r + 1][c + 1], nrms[r + 1][c + 1], kn)
+			_tri(st, grid[r][c], nrms[r][c], kc, grid[r + 1][c + 1], nrms[r + 1][c + 1], kn,
+				grid[r + 1][c], nrms[r + 1][c], kc)
+
+static func _tri(st: SurfaceTool, a: Vector3, na: Vector3, ka: float,
+		b: Vector3, nb: Vector3, kb: float, c: Vector3, nc: Vector3, kc: float) -> void:
+	st.set_color(Color(ka, 0, 0)); st.set_normal(na); st.add_vertex(a)
+	st.set_color(Color(kb, 0, 0)); st.set_normal(nb); st.add_vertex(b)
+	st.set_color(Color(kc, 0, 0)); st.set_normal(nc); st.add_vertex(c)
