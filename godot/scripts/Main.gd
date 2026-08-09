@@ -41,9 +41,42 @@ func _ready() -> void:
 	_build_layout()
 	_build_world()
 	_wire()
+	_setup_land_cut()
 
 	voyage.noted.emit("리스보아를 나섰다.", "")
 	_maybe_capture()
+
+## 육지와 바다를 나누는 값들. 셋(육지·가까운 바다·먼 바다)이 같은 값을 봐야
+## 물가가 한 줄로 떨어진다. 그래서 한자리에서만 넣는다.
+func _land_cut_materials() -> Array:
+	var mats: Array = [coast.sky_material()]
+	mats.append_array(ocean.sky_materials())
+	return mats
+
+func _setup_land_cut() -> void:
+	var ib := PackedVector2Array(Geo.poly_iberia())
+	var af := PackedVector2Array(Geo.poly_africa())
+	for m in _land_cut_materials():
+		if m == null:
+			continue
+		m.set_shader_parameter("near_scale", Geo.LAND_NEAR_SCALE)
+		m.set_shader_parameter("far_scale", Geo.LAND_SCALE)
+		m.set_shader_parameter("blend_near_m", Geo.BLEND_NEAR_M)
+		m.set_shader_parameter("blend_far_m", Geo.BLEND_FAR_M)
+		m.set_shader_parameter("coast_ib", ib)
+		m.set_shader_parameter("coast_af", af)
+		m.set_shader_parameter("geo_origin", Vector2(Geo.ORIGIN_LON, Geo.ORIGIN_LAT))
+		m.set_shader_parameter("km_lat", Geo.KM_LAT)
+
+func _follow_land_cut() -> void:
+	var here := Geo.to_metres(voyage.lon, voyage.lat)
+	var geo := Vector2(here.x, here.z)
+	var world := Vector2(ship.global_position.x, ship.global_position.z)
+	for m in _land_cut_materials():
+		if m == null:
+			continue
+		m.set_shader_parameter("ship_geo", geo)
+		m.set_shader_parameter("ship_world", world)
 
 ## 개발용. 이렇게 부르면 잠시 항해한 뒤 화면을 파일로 남기고 끝낸다.
 ##   godot --path godot -- --shot out.png --wait 6 --heading 150 --yaw -40
@@ -374,6 +407,7 @@ func _process(delta: float) -> void:
 	ocean.follow(ship.global_position)
 	# 육지는 바다와 다른 축척이라 배를 기준으로 따로 눌러 놓는다
 	coast.follow(ship.global_position, voyage.lon, voyage.lat, _time)
+	_follow_land_cut()
 	_place_far_sails()
 	_update_wake()
 	_update_sky()

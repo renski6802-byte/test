@@ -9,6 +9,8 @@ render_mode specular_schlick_ggx, cull_disabled;
 // 한 번 더 덧칠했기 때문이다.
 
 #include "res://shaders/sky_common.gdshaderinc"
+// 뭍이 서 있는 자리에는 바다를 안 그린다.
+#include "res://shaders/land_cut.gdshaderinc"
 
 uniform vec3 deep_color : source_color = vec3(0.005, 0.021, 0.040);
 uniform vec3 shallow_color : source_color = vec3(0.028, 0.098, 0.126);
@@ -44,6 +46,10 @@ void vertex() {
 }
 
 void fragment() {
+	// 물가. 여기서 자르지 않으면 바다가 해안선을 지나 뭍 위까지 깔린다.
+	if (land_stands_at(world_pos.xz)) {
+		discard;
+	}
 	float dist = length(VERTEX);
 	float t = TIME;
 

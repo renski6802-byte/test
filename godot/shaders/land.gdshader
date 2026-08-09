@@ -15,16 +15,19 @@ render_mode specular_schlick_ggx, cull_disabled, shadows_disabled;
 // 비탈이 무너지지 않도록 높이도 그 자리의 가로 배율을 따라간다.
 
 #include "res://shaders/sky_common.gdshaderinc"
+// 축척과 그 역함수는 바다 셰이더와 나눠 쓴다. 둘이 어긋나면 물가가 어긋난다.
+#include "res://shaders/land_cut.gdshaderinc"
 
 uniform sampler2D grain : hint_default_white, filter_linear_mipmap, repeat_enable;
 
-uniform vec2 ship_geo = vec2(0.0);    // 배의 자리(지리 미터)
-uniform float near_scale = 0.01111;   // 1/90. 물가 코앞의 배율
-uniform float far_scale = 0.04;       // 1/25.  먼 쪽 배율
-// 섞는 구간을 물가 쪽으로 바짝 당긴다. 넓게 잡으면 눈으로 보는 거리(5~30km)가
-// 통째로 근거리 배율에 걸려 육지가 사라진다.
-uniform float blend_near_m = 2000.0;
-uniform float blend_far_m = 18000.0;  // 여기부터는 far_scale
+// 물가가 파도에 잠기지 않게 깔아주는 바닥선.
+//
+// 물가 육지는 1/40 로 눌려 3km 앞 해안이 겨우 1~2m 가 되는데, 파도 마루도
+// 그만큼이라 바다가 육지를 뚫고 올라온다. 실제 높이가 floor_ref_m 을 넘는
+// 땅은 반드시 물 위 floor_rise_m 이상에 서게 한다.
+uniform float floor_rise_m = 3.2;
+uniform float floor_ref_m = 12.0;
+
 // 높이 = 그 자리의 가로배율 × 이 값.
 //
 // 가까운 쪽과 먼 쪽에 다른 값을 준다. 하나로 묶으면 둘 중 하나가 망가진다 —
@@ -33,10 +36,12 @@ uniform float blend_far_m = 18000.0;  // 여기부터는 far_scale
 uniform float slope_ease = 2.6;       // 물가
 uniform float slope_ease_far = 3.4;   // 안쪽 · 먼 해안
 uniform float haze_km = 32.0;
-uniform float surf_m = 9.0;           // 파도선이 닿는 실제 높이(m)
+// 파도선이 닿는 실제 높이(m). 넓게 잡으면 물가가 통째로 하얘져
+// 모래해안과 물거품이 같은 색이 된다.
+uniform float surf_m = 4.0;
 uniform float wave_time = 0.0;
 
-uniform vec3 sand_color : source_color = vec3(0.60, 0.55, 0.42);
+uniform vec3 sand_color : source_color = vec3(0.50, 0.45, 0.34);
 uniform vec3 grass_color : source_color = vec3(0.31, 0.36, 0.21);
 uniform vec3 rock_color : source_color = vec3(0.42, 0.39, 0.34);
 uniform vec3 rock_dark : source_color = vec3(0.29, 0.27, 0.24);
@@ -46,10 +51,6 @@ varying vec2 geo_xz;      // 지리 좌표(m). 무늬는 여기에 입힌다.
 varying float geo_h;      // 실제 높이(m)
 varying vec3 geo_nrm;     // 실제 지형의 법선
 varying float geo_dist;   // 배에서의 지리 거리(m)
-
-float land_scale_at(float r) {
-	return mix(near_scale, far_scale, smoothstep(blend_near_m, blend_far_m, r));
-}
 
 void vertex() {
 	geo_xz = VERTEX.xz;
@@ -61,7 +62,10 @@ void vertex() {
 	float s = land_scale_at(geo_dist);
 	float t = smoothstep(blend_near_m, blend_far_m, geo_dist);
 	float ease = mix(slope_ease, slope_ease_far, t);
-	VERTEX = vec3(d.x * s, VERTEX.y * s * ease, d.y * s);
+	// 눌린 높이와 바닥선 중 높은 쪽. 물가에서는 바닥선이, 안쪽에서는
+	// 실제 지형이 이긴다.
+	float lift = floor_rise_m * smoothstep(0.0, floor_ref_m, VERTEX.y);
+	VERTEX = vec3(d.x * s, max(VERTEX.y * s * ease, lift), d.y * s);
 }
 
 void fragment() {
@@ -95,7 +99,7 @@ void fragment() {
 	float surf = 1.0 - smoothstep(0.0, surf_m * tide, geo_h);
 	surf *= smoothstep(0.55, 0.15, slope);          // 절벽에는 안 걸린다
 	surf *= 0.45 + 0.55 * g3.g;
-	col = mix(col, surf_color, clamp(surf, 0.0, 0.80));
+	col = mix(col, surf_color, clamp(surf, 0.0, 0.55));
 
 	// ── 대기 원근. 지리 거리로 직접 건다.
 	float haze = 1.0 - exp(-(geo_dist * 0.001) / max(haze_km, 1.0));

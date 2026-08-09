@@ -13,6 +13,8 @@ render_mode specular_schlick_ggx;
 // 하늘은 하늘 셰이더와 똑같은 식으로 만든다. 물빛의 절반이 비친 하늘이라
 // 근사치를 따로 쓰면 절대 맞지 않는다.
 #include "res://shaders/sky_common.gdshaderinc"
+// 뭍이 서 있는 자리에는 바다를 안 그린다.
+#include "res://shaders/land_cut.gdshaderinc"
 
 uniform vec3 deep_color : source_color = vec3(0.005, 0.021, 0.040);
 uniform vec3 shallow_color : source_color = vec3(0.028, 0.098, 0.126);
@@ -106,6 +108,10 @@ void vertex() {
 }
 
 void fragment() {
+	// 물가. 여기서 자르지 않으면 바다가 해안선을 지나 뭍 위까지 깔린다.
+	if (land_stands_at(world_pos.xz)) {
+		discard;
+	}
 	float dist = length(VERTEX);
 	float t = TIME;
 
