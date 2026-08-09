@@ -8,10 +8,10 @@ render_mode specular_schlick_ggx, cull_disabled;
 // 이어지는 자리에 띠가 생긴다. 예전에 먼바다가 하얗게 뜬 것도 여기서 하늘을
 // 한 번 더 덧칠했기 때문이다.
 
+#include "res://shaders/sky_common.gdshaderinc"
+
 uniform vec3 deep_color : source_color = vec3(0.005, 0.021, 0.040);
 uniform vec3 shallow_color : source_color = vec3(0.028, 0.098, 0.126);
-uniform vec3 sky_horizon : source_color = vec3(0.62, 0.74, 0.84);
-uniform vec3 sky_zenith : source_color = vec3(0.24, 0.45, 0.72);
 uniform float choppiness = 1.0;
 uniform sampler2D ripple_normals : hint_normal, filter_linear_mipmap, repeat_enable;
 
@@ -78,7 +78,7 @@ void fragment() {
 
 	vec3 refl_dir = reflect(-view_dir, nv);
 	vec3 world_refl = (INV_VIEW_MATRIX * vec4(refl_dir, 0.0)).xyz;
-	vec3 sky = mix(sky_horizon, sky_zenith, clamp(world_refl.y * 1.6, 0.0, 1.0)) * 0.70;
+	vec3 sky = sky_color(world_refl) * 0.78;
 
 	vec3 body = mix(deep_color, shallow_color, clamp(1.0 - f * 0.85, 0.0, 1.0));
 

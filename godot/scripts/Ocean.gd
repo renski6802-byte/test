@@ -178,12 +178,10 @@ func set_ship(world_xz: Vector3, dir_xz: Vector2, speed01: float) -> void:
 	_near_mat.set_shader_parameter("ship_dir", dir_xz.normalized())
 	_near_mat.set_shader_parameter("ship_speed01", clampf(speed01, 0.0, 1.0))
 
-## 물에 비칠 하늘색을 넘겨준다. 물빛의 절반은 비친 하늘이다.
-func set_sky(horizon: Color, zenith: Color) -> void:
-	for m in [_near_mat, _far_mat]:
-		if m:
-			m.set_shader_parameter("sky_horizon", horizon)
-			m.set_shader_parameter("sky_zenith", zenith)
+## 바다가 하늘을 비추려면 하늘 셰이더와 같은 값을 봐야 한다.
+## 색 자체가 아니라 하늘을 만드는 재료를 그대로 넘긴다.
+func sky_materials() -> Array:
+	return [_near_mat, _far_mat]
 
 func height_at(x: float, z: float, t: float) -> float:
 	return displace_at(x, z, t).y

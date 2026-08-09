@@ -8,6 +8,7 @@ const BAND_RATIO := 22.0
 
 var voyage: Voyage
 var fog: Fog
+var sky_dome: SkyDome
 var ocean: Ocean
 var rig: CameraRig
 var ship: Node3D
@@ -24,7 +25,7 @@ var _camhint: Label
 var _speedplate: Label
 var _surveying: Label
 var _sun: DirectionalLight3D
-var _sky: ProceduralSkyMaterial
+var _sky: ShaderMaterial
 var _env: Environment
 
 var _time := 0.0
@@ -32,6 +33,7 @@ var _time := 0.0
 func _ready() -> void:
 	voyage = Voyage.new()
 	fog = Fog.new()
+	sky_dome = SkyDome.new()
 
 	_build_layout()
 	_build_world()
@@ -211,9 +213,8 @@ func _plate(text: String, col: Color) -> Label:
 func _build_world() -> void:
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
-	_sky = ProceduralSkyMaterial.new()
-	_sky.sun_angle_max = 12.0
-	_sky.sun_curve = 0.18
+	_sky = ShaderMaterial.new()
+	_sky.shader = load("res://shaders/sky.gdshader")
 	var sky := Sky.new()
 	sky.sky_material = _sky
 	e.background_mode = Environment.BG_SKY
@@ -387,47 +388,44 @@ func _place_ship() -> void:
 
 
 func _update_sky() -> void:
-	var h := fmod(voyage.hours, 24.0)
-	# 6시에 뜨고 18시에 진다
-	var elev := sin((h - 6.0) / 12.0 * PI) * 62.0
-	var azim := (h / 24.0) * 360.0 - 90.0
+	# 해와 달을 위도와 시각으로 제자리에 놓는다. 동에서 떠서 남중하고 서로 진다.
+	sky_dome.update(voyage.hours, voyage.lat)
+	var day := sky_dome.day01()
+	var dusk := sky_dome.dusk01()
 
-	var day := clampf((elev + 6.0) / 22.0, 0.0, 1.0)
-	var dusk := clampf(1.0 - absf(elev) / 16.0, 0.0, 1.0)
+	# 하늘과 바다가 같은 값을 봐야 물에 비친 하늘이 실제 하늘과 어긋나지 않는다
+	var mats: Array = [_sky]
+	mats.append_array(ocean.sky_materials())
+	sky_dome.push(mats)
 
-	# 해가 지면 달빛으로 갈아탄다. 위에서 내려오는 약한 빛이라야 밤에도 배가 보인다.
-	var lit_elev := elev if elev > 3.0 else 30.0
-	_sun.rotation = Vector3(deg_to_rad(-lit_elev), deg_to_rad(azim), 0.0)
+	# 밤에는 달빛으로 갈아탄다. 달도 제 궤도를 도므로 그림자가 달 쪽으로 눕는다.
+	var lit_dir: Vector3 = sky_dome.sun_dir if day > 0.02 else sky_dome.moon_dir
+	# 빛이 지평 아래에서 오면 그림자가 뒤집힌다. 그때는 위에서 내려오게 세운다.
+	if lit_dir.y < 0.12:
+		lit_dir = (lit_dir + Vector3.UP * 0.9).normalized()
+	_sun.look_at_from_position(Vector3.ZERO, -lit_dir, Vector3.UP)
 
-	var night_top := Color(0.027, 0.047, 0.094)
-	var night_horizon := Color(0.062, 0.086, 0.145)
-	var top := night_top.lerp(Color(0.208, 0.408, 0.678), day)
-	var horizon := night_horizon.lerp(Color(0.639, 0.757, 0.855), day)
-	horizon = horizon.lerp(Color(0.882, 0.545, 0.310), dusk * 0.75)
-
-	_sky.sky_top_color = top
-	_sky.sky_horizon_color = horizon
-	_sky.ground_bottom_color = top.darkened(0.4)
-	# 이 색이 곧 먼바다가 물러날 색이다 (fog_aerial_perspective)
-	_sky.ground_horizon_color = horizon.darkened(0.62)
-	var moon := Color(0.62, 0.72, 1.0)
-	_sun.light_color = moon.lerp(Color(1.0, 0.95, 0.88), day).lerp(Color(1.0, 0.72, 0.48), dusk * 0.8)
+	var moon_col := Color(0.62, 0.72, 1.0)
+	_sun.light_color = moon_col.lerp(Color(1.0, 0.95, 0.88), day) \
+		.lerp(Color(1.0, 0.72, 0.48), dusk * 0.8)
 	_sun.light_energy = lerpf(0.30, 1.25, day)
 
 	# 해가 낮으면 반짝임 길이 수평선까지 길게 누워 화면을 태운다. 새벽에 가까운
 	# 바다가 하늘만큼 밝아졌던 원인이다. 고도가 낮을수록 반사광만 눌러준다.
-	_sun.light_specular = lerpf(0.10, 1.0, clampf(lit_elev / 55.0, 0.0, 1.0))
+	var lit_alt := rad_to_deg(asin(clampf(lit_dir.y, -1.0, 1.0)))
+	_sun.light_specular = lerpf(0.10, 1.0, clampf(lit_alt / 55.0, 0.0, 1.0))
 
 	# 밤에는 하늘이 어두워 하늘빛만으로는 아무것도 안 보인다. 바닥을 깔아준다.
 	_env.ambient_light_color = Color(0.17, 0.23, 0.36)
 	_env.ambient_light_energy = lerpf(0.75, 1.0, day)
 	_env.ambient_light_sky_contribution = lerpf(0.18, 0.5, day)
 
-	# 바다의 먼 끝과 안개도 하늘을 따라간다.
-	# 다만 안개를 하늘색 그대로 쓰면 먼바다가 수평선에서 하늘에 녹아 사라진다.
-	# 실제로는 멀어져도 물빛이 남는다. 그래서 물빛 쪽으로 조금 당겨둔다.
-	ocean.set_sky(horizon, top)
+	# 안개는 지평 언저리 하늘을 따라간다. 다만 하늘색 그대로 쓰면 먼바다가
+	# 수평선에서 하늘에 녹아 사라진다. 실제로는 멀어져도 물빛이 남는다.
+	var horizon := Color(0.166, 0.216, 0.338).lerp(Color(0.639, 0.757, 0.855), day)
+	horizon = horizon.lerp(Color(0.882, 0.545, 0.310), dusk * 0.55)
 	_env.fog_light_color = horizon.lerp(Color(0.10, 0.20, 0.30), 0.52)
+
 
 func _update_hud() -> void:
 	_surveying.visible = voyage.surveying

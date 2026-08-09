@@ -25,7 +25,10 @@ import struct
 import sys
 from pathlib import Path
 
-MAG_LIMIT = 6.5         ## 육안 한계. 불빛 없는 바다 기준이다.
+## 불빛 없는 바다의 육안 한계는 6.5등급(약 8천 개)이지만 화면이 너무 빽빽하다.
+## 5.5등급이면 알려진 별자리의 뼈대가 온전히 남는다 — 작은곰자리 손잡이 끝
+## (η UMi, 4.95등급)까지 들어와야 북극성 관측이 형태로 읽힌다.
+MAG_LIMIT = 5.5
 MAG_MIN = -2.0
 MAG_SPAN = 16.0
 BV_MIN = -0.5

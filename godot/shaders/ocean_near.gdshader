@@ -10,10 +10,12 @@ render_mode specular_schlick_ggx;
 // 여기 네 겹은 scripts/Ocean.gd 의 WAVES 와 반드시 같아야 한다.
 // 배가 파도를 타려면 CPU 가 같은 높이를 계산할 수 있어야 하기 때문이다.
 
+// 하늘은 하늘 셰이더와 똑같은 식으로 만든다. 물빛의 절반이 비친 하늘이라
+// 근사치를 따로 쓰면 절대 맞지 않는다.
+#include "res://shaders/sky_common.gdshaderinc"
+
 uniform vec3 deep_color : source_color = vec3(0.005, 0.021, 0.040);
 uniform vec3 shallow_color : source_color = vec3(0.028, 0.098, 0.126);
-uniform vec3 sky_horizon : source_color = vec3(0.62, 0.74, 0.84);
-uniform vec3 sky_zenith : source_color = vec3(0.24, 0.45, 0.72);
 uniform vec3 foam_color : source_color = vec3(0.92, 0.95, 0.96);
 uniform vec3 sss_color : source_color = vec3(0.09, 0.36, 0.32);
 uniform float choppiness = 1.0;
@@ -148,8 +150,8 @@ void fragment() {
 
 	vec3 refl_dir = reflect(-view_dir, nv);
 	vec3 world_refl = (INV_VIEW_MATRIX * vec4(refl_dir, 0.0)).xyz;
-	// 물에 비친 하늘은 하늘 자체보다 어둡다
-	vec3 sky = mix(sky_horizon, sky_zenith, clamp(world_refl.y * 1.6, 0.0, 1.0)) * 0.70;
+	// 물에 비친 하늘은 하늘 자체보다 조금 어둡다
+	vec3 sky = sky_color(world_refl) * 0.78;
 
 	vec3 body = mix(deep_color, shallow_color, clamp(1.0 - f * 0.85, 0.0, 1.0));
 	// 물마루가 얇아지면 빛이 통과해 속이 비친다
