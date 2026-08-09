@@ -172,8 +172,9 @@ func refresh(v: Voyage, view_brg := NAN) -> void:
 	var near_ok := v.near_port != null
 	_btn_enter.disabled = not near_ok
 	_btn_survey.button_pressed = v.surveying
-	_supply.text = "물 %d일 · 식량 %d일" % [int(v.water_days), int(v.food_days)]
-	var low := minf(v.water_days, v.food_days) < 10.0
+	_supply.text = "물 %d일 · 식량 %d일 · 선체 %d%%" % [
+		int(v.water_days), int(v.food_days), int(round(v.hull))]
+	var low := minf(v.water_days, v.food_days) < 10.0 or v.hull < 60.0
 	_supply.add_theme_color_override("font_color", Pal.VERMILION if low else Pal.BAND_FAINT)
 
 # ── 잔손질 ──────────────────────────────────────────────────────

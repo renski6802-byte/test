@@ -344,7 +344,7 @@ func _process(delta: float) -> void:
 		voyage.steer(delta)
 		voyage.step(delta)
 
-	var fast := clampf((voyage.time_scale - 4.0) / 56.0, 0.0, 1.0)
+	var fast := clampf((voyage.time_scale - 1.0) / 3.0, 0.0, 1.0)
 	ocean.choppiness = lerpf(0.55, 1.75, voyage.sea_state) * lerpf(1.0, 0.28, fast)
 
 	_place_ship()
@@ -364,7 +364,7 @@ func _update_wake() -> void:
 
 	# 배속을 올리면 배가 세계를 훌쩍훌쩍 건너뛴다. 물방울은 태어난 자리에 남으므로
 	# 그때 물보라를 계속 뿜으면 배 뒤로 흰 줄이 길게 끌린다. 그래서 끊는다.
-	_spray.set_speed01(sp01 if voyage.time_scale <= 4.0 else 0.0)
+	_spray.set_speed01(sp01 if voyage.time_scale <= 1.0 else 0.0)
 
 ## 배를 파도 위에 올린다. 앞뒤·좌우 네 점의 물 높이로 기울기를 구한다.
 func _place_ship() -> void:
@@ -439,10 +439,13 @@ func _update_sky() -> void:
 func _update_hud() -> void:
 	_surveying.visible = voyage.surveying
 
-	_speedplate.visible = voyage.time_scale > 1.0
+	_speedplate.visible = not is_equal_approx(voyage.time_scale, 1.0)
 	if _speedplate.visible:
-		_speedplate.text = "%d배속 — 하루가 %d초" % [
-			int(voyage.time_scale), int(round(86400.0 / (Voyage.CLOCK * voyage.time_scale)))]
+		var secs := 86400.0 / (Voyage.CLOCK * voyage.time_scale)
+		var day := "%d초" % int(round(secs)) if secs < 90.0 else "%.0f분" % (secs / 60.0)
+		var lab := "%.2f" % voyage.time_scale
+		lab = lab.rstrip("0").rstrip(".")
+		_speedplate.text = "%s배속 — 하루가 %s" % [lab, day]
 
 	_camhint.visible = rig.is_off_center()
 	if _camhint.visible:

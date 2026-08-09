@@ -8,11 +8,17 @@ extends RefCounted
 
 ## 지리 1미터를 세계 몇 미터로 그릴 것인가.
 ##
-## 시계가 빨리 돌면 배는 지리적으로 초당 수 km 를 간다. 그걸 그대로 3D 에 옮기면
-## 물이 흐르는 게 아니라 끓는다. 그렇다고 시계 압축만큼(1440배) 세계를 줄이면
-## 포르투갈이 배 스무 척 길이가 된다.
-## 그래서 압축을 시간과 공간에 나눠 건다. 이 값이 공간 쪽 몫이다.
-const WORLD_SCALE := 1.0 / 13.0
+## 하루가 실시간 1분이면 배는 지리적으로 초당 7.4km 를 간다. 그걸 그대로 3D 에
+## 옮기면 물이 흐르는 게 아니라 끓는다. 그래서 세계를 같은 비율로 줄인다.
+##
+## 이러면 포르투갈 서안이 1.6km 가 되어 배(26m)보다 겨우 예순 배 길다.
+## 그래도 화면은 멀쩡하다 — 거리와 함께 높이도 같은 비율로 줄이면 겉보기 각도가
+## 그대로이기 때문이다. 20km 앞의 200m 산(0.57도)과 54m 앞의 0.54m 둔덕(0.57도)은
+## 화면에서 구분되지 않는다. 원작도 이 정도로 압축한다.
+##
+## 축척을 안 받는 것은 배 하나뿐이다. 배는 파도와 같은 물에 떠야 하므로 26m 를
+## 지켜야 하고, 그래서 지리에 비해 거대해진다. 그것도 원작의 모습 그대로다.
+const WORLD_SCALE := 1.0 / 370.0
 
 const KM_LAT := 111.19
 
@@ -71,9 +77,11 @@ const PORTS := [
 	{ "name": "살레", "lon": -6.84, "lat": 34.03, "region": "마그레브", "home": false },
 ]
 
-## M0 검증용. 실제 해안선은 손대지 않고 항구만 리스보아 앞에 가깝게 둔다.
-## 1배속에서도 2~5분이면 닿아서 조작감을 확인하기 좋다. 본편에서는 끄면 된다.
-const USE_TEST_PORTS := true
+## 검증용으로 항구를 리스보아 앞에 몰아둘 것인가.
+##
+## 하루가 28분이던 시절엔 실제 항구까지 몇십 분이 걸려 검증이 안 됐다.
+## 하루가 1분이 된 지금은 리스보아→사그레스가 1.5분이라 그럴 이유가 없어졌다.
+const USE_TEST_PORTS := false
 
 ## 실제 해안에서 8km 남짓 떨어진 정박지로 잡았다. 뭍 위에 떠 있지 않도록.
 ## 1배속 기준 리스보아에서 각각 1.5분 / 4분 / 6분 / 7분 / 8분.
@@ -124,19 +132,38 @@ static func in_poly(lon: float, lat: float, poly: Array) -> bool:
 static func on_land(lon: float, lat: float) -> bool:
 	return in_poly(lon, lat, poly_iberia()) or in_poly(lon, lat, poly_africa())
 
-## 해안선까지의 대략적인 거리 (바다에 흩뿌릴 것들을 배치할 때 쓴다)
+## 해안선까지의 거리(km).
+##
+## 꼭짓점까지의 거리만 재면 안 된다 — 해안선 점 사이가 10~20km 라, 두 점 한가운데
+## 있으면 실제로는 코앞인데 멀다고 나온다. 좌초 판정이 이 값에 걸리므로
+## 선분까지의 거리를 제대로 잰다.
 static func coast_dist_km(lon: float, lat: float) -> float:
 	var best := 1.0e9
+	var kx := km_per_deg_lon(lat)
 	for coast in [COAST_IB, COAST_AF]:
-		for p in coast:
-			best = min(best, dist_km(lon, lat, p.x, p.y))
+		for i in range(coast.size() - 1):
+			var a: Vector2 = coast[i]
+			var b: Vector2 = coast[i + 1]
+			# 경도 1도의 거리가 위도 1도와 다르므로 km 로 펴놓고 잰다
+			var pa := Vector2((a.x - lon) * kx, (a.y - lat) * KM_LAT)
+			var pb := Vector2((b.x - lon) * kx, (b.y - lat) * KM_LAT)
+			var ab := pb - pa
+			var len2 := ab.length_squared()
+			var t := 0.0 if len2 < 1e-9 else clampf(-pa.dot(ab) / len2, 0.0, 1.0)
+			best = minf(best, (pa + ab * t).length())
 	return best
 
-## 그 자리 해안의 높이(m). 같은 자리는 늘 같은 값이 나오도록 해싱한다.
+## 그 자리 해안의 높이. 세계 좌표의 미터다 — 지리 축척을 받지 않는다.
+##
+## 높이도 축척을 받아야 겉보기 각도가 맞다는 게 원칙이지만, 그 원칙은 눈높이도
+## 같이 줄어들 때만 성립한다. 우리 카메라는 배(26m)에 매여 있어 20m 높이에서
+## 내려다본다. 거기서 0.5m 짜리 산은 땅이 아니라 물에 뜬 판때기로 보인다.
+##
+## 그래서 해안선의 "자리"만 지리 축척을 따르고, 땅이 솟는 모양은 배가 보기에
+## 그럴듯한 크기로 따로 잡는다. 같은 자리는 늘 같은 값이 나오도록 해싱한다.
 static func coast_height(lon: float, lat: float) -> float:
 	var s: float = sin(lon * 12.9898 + lat * 78.233) * 43758.5453
-	# 높이는 축척을 안 받는다. 가로가 줄어든 만큼 비탈이 가팔라지므로 조금 낮춰 잡는다.
-	return 60.0 + (s - floor(s)) * 170.0
+	return 18.0 + (s - floor(s)) * 44.0
 
 const COMPASS8 := ["북", "북동", "동", "남동", "남", "남서", "서", "북서"]
 const COMPASS16 := [

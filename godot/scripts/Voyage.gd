@@ -9,9 +9,18 @@ signal revealed(lon: float, lat: float, radius_km: float)
 signal time_scale_changed(scale: float, reason: String)
 
 ## 1배속에서 실시간 1초가 게임 몇 초인가.
-## 하루가 29분이라 물살이 정직하게 보인다. 배속을 올리면 하루가 29초까지 줄어든다.
-const CLOCK := 50.0
-const TIME_SCALES := [1.0, 4.0, 16.0, 60.0]
+##
+## 원작대로 하루가 실시간 1분이다. 이것이 순항 속도이고, 창을 줄여놓고 딴짓하는
+## 그 모드가 기본이 된다.
+const CLOCK := 1440.0
+
+## 배속. 1배속 위로만 두면 물을 들여다볼 방법이 없으므로 아래로도 둔다.
+##   0.25배 = 하루 4분, 배가 초당 5m (실제 10노트 그대로)
+##   1배    = 하루 1분, 배가 초당 20m
+##   4배    = 하루 15초
+const TIME_SCALES := [0.25, 0.5, 1.0, 2.0, 4.0]
+const CRUISE_SCALE := 1.0
+const CAREFUL_SCALE := 0.5      ## 무슨 일이 생기면 여기까지 내린다
 
 const BASE_KN := 4.2            ## 돛 한 단당. 전개하면 두 배
 
@@ -24,6 +33,15 @@ const TURN_RATE := 22.0
 
 ## 정박 중엔 키가 안 듣는다. 물이 흘러야 방향이 잡힌다.
 const TURN_STEERAGE := 0.35     ## 돛을 내렸을 때 남는 선회력
+
+## 좌초. 육지에 붙으면 배가 긁힌다.
+##
+## 배가 지리에 비해 크다는 문제가 여기서 규칙으로 흡수된다 — 해안은 가까이
+## 가면 안 되는 것이 되고, 접근 자체가 실수가 된다.
+const GROUND_WARN_KM := 8.0     ## 여기부터 경고
+const GROUND_HIT_KM := 3.0      ## 여기부터 긁힌다
+const HULL_MAX := 100.0
+const HULL_RATE := 14.0         ## 가장 얕은 곳에서 게임 한 시간에 깎이는 내구도
 
 var lon := -9.52
 var lat := 38.66
@@ -46,6 +64,7 @@ var seen_features := {}
 var sails_seen := {}            ## 수평선에서 본 다른 배
 var other_ships: Array = []
 
+var hull := HULL_MAX            ## 선체 내구도
 var sea_state := 0.3            ## 0 잔잔 ~ 1 폭풍
 var water_days := 40.0
 var food_days := 40.0
@@ -56,6 +75,8 @@ var _last_reveal := Vector2(999, 999)
 var _in_storm := false
 var _supply_warned := false
 var _land_in_sight := false
+var _ground_warned := false
+var _last_scrape := -99.0
 
 func _init() -> void:
 	_seed_features()
@@ -93,7 +114,9 @@ func wind_label() -> String:
 
 func speed_knots() -> float:
 	var s := float(min(sails, 2)) * 0.34 if surveying else float(sails)
-	return BASE_KN * s * wind_mult()
+	# 긁힌 배는 물을 먹어 느려진다
+	var wear := lerpf(0.55, 1.0, clampf(hull / HULL_MAX, 0.0, 1.0))
+	return BASE_KN * s * wind_mult() * wear
 
 # ── 배속 ────────────────────────────────────────────────────────
 func set_time_scale(v: float, reason := "") -> void:
@@ -110,11 +133,14 @@ func cycle_time_scale(dir: int) -> void:
 
 ## 볼 것이 생기면 배속이 저절로 풀린다. 그래야 배속이 "콘텐츠 건너뛰기"가 아니라
 ## "빈 바다 건너뛰기"가 된다.
+##
+## 순항(1배)까지가 아니라 조심 속도까지 내린다. 하루가 1분이면 순항에서도 초당
+## 7.4km 를 가므로, 1배로만 내려서는 그 일을 볼 시간이 안 생긴다.
 func _release(reason: String) -> void:
-	if time_scale <= 1.0:
+	if time_scale <= CAREFUL_SCALE:
 		return
-	set_time_scale(1.0, reason)
-	noted.emit("배속을 풀었다 — %s" % reason, "warn")
+	set_time_scale(CAREFUL_SCALE, reason)
+	noted.emit("배속을 늦췄다 — %s" % reason, "warn")
 
 # ── 진행 ────────────────────────────────────────────────────────
 ## 침로를 지시한다. 뱃머리는 여기까지 스스로 돌아간다.
@@ -142,6 +168,7 @@ func step(dt: float) -> void:
 	wind_brg = fposmod(210.0 + sin(_wind_phase) * 55.0 + sin(_wind_phase * 2.3) * 18.0, 360.0)
 	_update_weather(dt_h)
 	_burn_supplies(dt_h)
+	_check_ground(dt_h)
 
 	var km := speed_knots() * 1.852 * dt_h
 	if km > 0.0:
@@ -175,6 +202,38 @@ func _reveal() -> void:
 		return
 	_last_reveal = Vector2(lon, lat)
 	revealed.emit(lon, lat, r)
+
+# ── 좌초 ────────────────────────────────────────────────────────
+## 해안에 붙으면 긁힌다. 배가 지리에 비해 크므로 실제로 얹히기 전에 경고가 온다.
+func _check_ground(dt_h: float) -> void:
+	# 항구는 원래 해안에 붙어 있다. 입항하러 들어가는 길을 좌초로 잡으면 안 된다.
+	for p in Geo.ports():
+		if Geo.dist_km(lon, lat, p.lon, p.lat) < arrive_km() * 1.6:
+			_ground_warned = false
+			return
+
+	var d := Geo.coast_dist_km(lon, lat)
+
+	if d > GROUND_WARN_KM:
+		_ground_warned = false
+		return
+
+	if not _ground_warned:
+		_ground_warned = true
+		noted.emit("여울이다. 뱃머리를 바다 쪽으로 돌려라.", "warn")
+		_release("여울")
+
+	if d >= GROUND_HIT_KM:
+		return
+
+	var bite := (GROUND_HIT_KM - d) / GROUND_HIT_KM
+	hull = maxf(0.0, hull - HULL_RATE * bite * dt_h)
+	if hours - _last_scrape > 3.0:
+		_last_scrape = hours
+		if hull <= 0.0:
+			noted.emit("배가 갈라졌다. 더는 못 간다.", "warn")
+		else:
+			noted.emit("바닥이 긁힌다. 선체 %d%%." % int(hull), "warn")
 
 # ── 자동 해제 조건 다섯 ──────────────────────────────────────────
 ## ① 육지 시인
@@ -244,10 +303,13 @@ func enter_port() -> void:
 		return
 	var p = near_port
 	sails = 0
-	set_time_scale(1.0)
+	set_time_scale(CAREFUL_SCALE)
 	water_days = 40.0
 	food_days = 40.0
 	_supply_warned = false
+	# 항구에서는 긁힌 데도 손본다
+	var patched := hull < HULL_MAX - 1.0
+	hull = HULL_MAX
 	if not visited.has(p.name):
 		visited[p.name] = true
 		noted.emit("%s 입항. 닻을 내리고 물과 식량을 채웠다." % p.name, "hi")
@@ -259,6 +321,8 @@ func enter_port() -> void:
 			spoke.emit("주앙", "%s입니다. 닻을 내렸습니다." % p.name)
 	else:
 		spoke.emit("주앙", "%s에 다시 들렀습니다. 물과 식량을 채웠습니다." % p.name)
+	if patched:
+		noted.emit("선체를 손봤다.", "hi")
 
 func ask_crew() -> void:
 	var left: Array = []
