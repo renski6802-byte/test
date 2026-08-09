@@ -20,6 +20,26 @@ extends RefCounted
 ## 지켜야 하고, 그래서 지리에 비해 거대해진다. 그것도 원작의 모습 그대로다.
 const WORLD_SCALE := 1.0 / 370.0
 
+## 육지만 쓰는 축척.
+##
+## 바다 축척(1/370)으로 육지를 세우면 26km 시야가 70m — 배 세 척 길이라
+## 무엇을 그려도 뭉개진다. 육지는 훨씬 완만하게 눌러 26km 가 1km 가 되게 한다.
+## 그러면 곶과 만이 각각 수백 미터를 차지해 지형이 성립하고, 해안이 수평선의
+## 띠에서 시작해 몇십 초에 걸쳐 다가온다.
+##
+## 대가는 육지가 다가오는 속도가 배의 속도와 안 맞는다는 것 하나뿐인데,
+## 육지가 보이면 배속이 저절로 내려가므로 눈에 띄지 않는다.
+## 열린 바다에는 견줄 눈금이 없어 아무도 못 알아챈다.
+const LAND_SCALE := 1.0 / 25.0
+
+## 육지 높이에 따로 먹이는 축척.
+##
+## 가로만 1/25 로 누르고 높이를 실제로 두면 비탈이 25배 가팔라져 땅이 벽이 된다.
+## 그렇다고 가로와 같은 값을 먹이면 산이 1cm 가 되어 물에 뜬 판때기가 된다.
+## 그 사이에서 고른 값이다 — 절벽은 19도 비탈로 서고, 26km 밖에서 1도쯤 되는
+## 띠로 보이다가 다가올수록 벽처럼 커진다.
+const LAND_HEIGHT_SCALE := 1.0 / 8.0
+
 const KM_LAT := 111.19
 
 const LON_MIN := -11.0
@@ -54,6 +74,38 @@ const COAST_AF := [
 	Vector2(-6.84, 34.03), Vector2(-7.10, 33.80), Vector2(-7.45, 33.65),
 	Vector2(-7.62, 33.55), Vector2(-8.00, 33.40),
 ]
+
+## 해안의 생김새. 구간마다 다르게 준다 — 실제 지형을 따르면 항해에 의미가 생긴다.
+## 절벽은 멀리서도 보여 좋은 표지가 되고, 낮은 모래해안은 늦게 보여 좌초가 무섭다.
+enum { SAND, LOW, CLIFF, MOUNTAIN }
+
+## 종류별 [높이 최소, 최대, 능선까지, 고원까지, 색]. 거리는 지리 미터다.
+const TERRAIN := {
+	SAND: [6.0, 22.0, 2600.0, 22000.0, Color("b8ac86")],
+	LOW: [35.0, 85.0, 4000.0, 26000.0, Color("55603d")],
+	CLIFF: [90.0, 180.0, 1400.0, 22000.0, Color("6f6656")],
+	MOUNTAIN: [240.0, 430.0, 6000.0, 34000.0, Color("3e4736")],
+}
+
+## COAST_IB 의 점마다 어떤 땅인가
+const TYPE_IB := [
+	CLIFF, CLIFF, CLIFF, CLIFF, CLIFF, CLIFF,        # 페니셰 ~ 호카 곶
+	CLIFF, LOW, LOW, LOW, LOW, LOW,                  # 리스보아 · 세투발
+	CLIFF, CLIFF, CLIFF, CLIFF, CLIFF, CLIFF,        # 알렌테주 · 상비센트 곶
+	CLIFF, CLIFF, SAND, SAND, SAND, SAND,            # 사그레스 ~ 알가르베
+	SAND, SAND, SAND, SAND, LOW, LOW,                # 우엘바 · 카디스
+	LOW, LOW, MOUNTAIN, MOUNTAIN, MOUNTAIN, MOUNTAIN, # 타리파 · 지브롤터
+]
+
+## COAST_AF 의 점마다
+const TYPE_AF := [
+	MOUNTAIN, MOUNTAIN, MOUNTAIN, MOUNTAIN,          # 탕헤르 · 리프
+	LOW, LOW, LOW, LOW, SAND, SAND,                  # 라라슈 · 라바트
+	SAND, SAND, SAND, SAND,                          # 카사블랑카
+]
+
+static func coast_types(coast: Array) -> Array:
+	return TYPE_IB if coast == COAST_IB else TYPE_AF
 
 ## 충돌 판정에 쓰는 닫힌 다각형 (해안선 + 지도 바깥쪽 변)
 static func poly_iberia() -> Array:
@@ -99,6 +151,12 @@ static func ports() -> Array:
 
 static func km_per_deg_lon(lat: float) -> float:
 	return 111.32 * cos(deg_to_rad(lat))
+
+## 경위도 → 축척을 안 먹인 지리 미터. 육지 메시가 이 좌표로 만들어진다.
+static func to_metres(lon: float, lat: float) -> Vector3:
+	var east := (lon - ORIGIN_LON) * km_per_deg_lon(lat) * 1000.0
+	var north := (lat - ORIGIN_LAT) * KM_LAT * 1000.0
+	return Vector3(east, 0.0, -north)
 
 ## 경위도 → 세계 좌표(미터)
 static func to_world(lon: float, lat: float) -> Vector3:
@@ -153,17 +211,12 @@ static func coast_dist_km(lon: float, lat: float) -> float:
 			best = minf(best, (pa + ab * t).length())
 	return best
 
-## 그 자리 해안의 높이. 세계 좌표의 미터다 — 지리 축척을 받지 않는다.
-##
-## 높이도 축척을 받아야 겉보기 각도가 맞다는 게 원칙이지만, 그 원칙은 눈높이도
-## 같이 줄어들 때만 성립한다. 우리 카메라는 배(26m)에 매여 있어 20m 높이에서
-## 내려다본다. 거기서 0.5m 짜리 산은 땅이 아니라 물에 뜬 판때기로 보인다.
-##
-## 그래서 해안선의 "자리"만 지리 축척을 따르고, 땅이 솟는 모양은 배가 보기에
-## 그럴듯한 크기로 따로 잡는다. 같은 자리는 늘 같은 값이 나오도록 해싱한다.
-static func coast_height(lon: float, lat: float) -> float:
+## 그 자리 해안의 높이(m). 실제 높이 그대로다 — 육지 축척은 가로에만 먹인다.
+## 같은 자리는 늘 같은 값이 나오도록 해싱해서 종류가 정한 범위 안에서 흔든다.
+static func coast_height(lon: float, lat: float, kind: int) -> float:
+	var t: Array = TERRAIN[kind]
 	var s: float = sin(lon * 12.9898 + lat * 78.233) * 43758.5453
-	return 18.0 + (s - floor(s)) * 44.0
+	return lerpf(t[0], t[1], s - floor(s)) * LAND_HEIGHT_SCALE
 
 const COMPASS8 := ["북", "북동", "동", "남동", "남", "남서", "서", "북서"]
 const COMPASS16 := [

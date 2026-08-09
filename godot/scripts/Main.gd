@@ -10,6 +10,8 @@ var voyage: Voyage
 var fog: Fog
 var sky_dome: SkyDome
 var stars: StarField
+var coast: CoastMesh
+var _sails_afloat: Array = []
 var ocean: Ocean
 var rig: CameraRig
 var ship: Node3D
@@ -57,6 +59,13 @@ func _maybe_capture() -> void:
 
 	var path := get_arg.call("--shot", "shot.png") as String
 	var wait := float(get_arg.call("--wait", "5"))
+	# --at "-8.99,37.05" 처럼 주면 그 자리에서 시작한다. 해안을 보러 갈 때 쓴다.
+	var at := get_arg.call("--at", "") as String
+	if at != "":
+		var parts := at.split(",")
+		if parts.size() == 2:
+			voyage.lon = float(parts[0])
+			voyage.lat = float(parts[1])
 	voyage.face(float(get_arg.call("--heading", str(voyage.heading))))
 	voyage.sails = int(get_arg.call("--sails", "2"))
 	rig.yaw = float(get_arg.call("--yaw", "0"))
@@ -253,7 +262,9 @@ func _build_world() -> void:
 	stars.name = "Stars"
 	_viewport.add_child(stars)
 
-	_viewport.add_child(CoastMesh.build())
+	coast = CoastMesh.new()
+	coast.name = "Coast"
+	_viewport.add_child(coast)
 
 	ship = ShipModel.build()
 	sails_node = ship.get_node_or_null("Sails")
@@ -262,15 +273,26 @@ func _build_world() -> void:
 	ship.add_child(_spray)
 	_viewport.add_child(ship)
 
+	# 남의 배도 육지와 같은 축척으로 놓는다. 바다 축척으로 두면 50km 밖의 배가
+	# 135m 앞에 서고 5km 밖의 배는 우리 선체 안에 들어온다.
 	for s in voyage.other_ships:
 		var mark := _distant_sail()
-		mark.position = Geo.to_world(s.lon, s.lat)
 		mark.rotation.y = -deg_to_rad(s.heading)
 		_viewport.add_child(mark)
+		_sails_afloat.append({"node": mark, "lon": s.lon, "lat": s.lat})
 
 	rig = CameraRig.new()
 	rig.name = "CameraRig"
 	_viewport.add_child(rig)
+
+## 남의 배를 육지와 같은 축척으로 배 주위에 놓는다.
+func _place_far_sails() -> void:
+	var here := Geo.to_metres(voyage.lon, voyage.lat)
+	for e in _sails_afloat:
+		var off := (Geo.to_metres(e.lon, e.lat) - here) * Geo.LAND_SCALE
+		var n: Node3D = e.node
+		n.global_position = Vector3(
+			ship.global_position.x + off.x, 0.0, ship.global_position.z + off.z)
 
 ## 수평선에 보이는 남의 돛. 가까이 갈 일이 아직 없으니 단순하게 둔다.
 func _distant_sail() -> Node3D:
@@ -350,6 +372,9 @@ func _process(delta: float) -> void:
 	_place_ship()
 	rig.place(ship.global_position, voyage.heading, delta)
 	ocean.follow(ship.global_position)
+	# 육지는 바다와 다른 축척이라 배를 기준으로 따로 눌러 놓는다
+	coast.follow(ship.global_position, voyage.lon, voyage.lat)
+	_place_far_sails()
 	_update_wake()
 	_update_sky()
 	_update_hud()
