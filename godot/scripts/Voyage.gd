@@ -6,7 +6,7 @@ extends RefCounted
 signal noted(text: String, kind: String)      ## 세계가 알려주는 것
 signal spoke(who: String, text: String)       ## 사람이 하는 말
 signal revealed(lon: float, lat: float, radius_km: float)
-signal time_scale_changed(scale: float, reason: String)
+signal sails_changed(stage: int, reason: String)
 
 ## 1배속에서 실시간 1초가 게임 몇 초인가.
 ##
@@ -14,16 +14,21 @@ signal time_scale_changed(scale: float, reason: String)
 ## 그 모드가 기본이 된다.
 const CLOCK := 1440.0
 
-## 배속. 1배속 위로만 두면 물을 들여다볼 방법이 없으므로 아래로도 둔다.
-##   0.25배 = 하루 4분, 배가 초당 5m (실제 10노트 그대로)
-##   1배    = 하루 1분, 배가 초당 20m
-##   4배    = 하루 15초
-const TIME_SCALES := [0.1, 0.25, 0.5, 1.0, 2.0, 4.0]
-const CRUISE_SCALE := 1.0
-const CAREFUL_SCALE := 0.5      ## 무슨 일이 생기면 여기까지 내린다
-const COAST_SCALE := 0.1        ## 여울에 들어서면 여기까지. 하루가 10분이 된다.
+## 돛. 이것이 유일한 속도 조절이다.
+##
+## 전에는 시계를 늦춰 속도를 조절했다. 그러면 "0.5배속 — 하루가 2분" 처럼
+## 세계의 리듬 자체가 흔들린다. 원작은 시계를 고정한 채 돛으로 조절한다.
+## 하루는 언제나 실시간 1분이고, 느리게 가고 싶으면 돛을 접는다.
+##
+## 노트는 실제 배의 값 그대로다. 압축은 시계(CLOCK)가 혼자 맡는다.
+## 실시간 1초에 가는 거리 = 노트 × 0.74km.
+enum { FURLED, SLOW, CRUISE, FULL }
+const SAIL_KN := [0.0, 2.2, 6.0, 9.0]
+const SAIL_NAME := ["정박", "미속", "순항", "전속"]
 
-const BASE_KN := 4.2            ## 돛 한 단당. 전개하면 두 배
+## 돛을 올리고 내리는 데 걸리는 시간(실시간 초). 즉시 바뀌면 배가 아니라
+## 순간이동이 된다. 물살과 물보라도 이 값을 따라 잦아든다.
+const SAIL_EASE := 2.2
 
 ## 뱃머리가 실시간 1초에 돌 수 있는 각도.
 ##
@@ -39,7 +44,9 @@ const TURN_STEERAGE := 0.35     ## 돛을 내렸을 때 남는 선회력
 ##
 ## 배가 지리에 비해 크다는 문제가 여기서 규칙으로 흡수된다 — 해안은 가까이
 ## 가면 안 되는 것이 되고, 접근 자체가 실수가 된다.
-const GROUND_WARN_KM := 8.0     ## 여기부터 경고
+## 전속이면 실시간 1초에 6.7km 를 간다. 경고선이 8km 면 손쓸 틈이 1초뿐이라
+## 20km 로 물렸다. 여기서 돛이 미속까지 접히므로 실제로는 10초쯤 남는다.
+const GROUND_WARN_KM := 20.0    ## 여기부터 경고
 const GROUND_HIT_KM := 3.0      ## 여기부터 긁힌다
 const GROUND_STOP_KM := 1.2     ## 여기서는 아예 못 들어간다. 배가 뭍에 올라앉는다.
 const HULL_MAX := 100.0
@@ -49,11 +56,11 @@ var lon := -9.52
 var lat := 38.66
 var heading := 190.0            ## 도, 0 = 북. 실제로 뱃머리가 향한 쪽
 var ordered_heading := 190.0    ## 지시한 침로. heading 은 이걸 향해 서서히 돈다
-var sails := 1                  ## 0 정박 / 1 반 / 2 전개
+var sails := CRUISE              ## 정박 / 미속 / 순항 / 전속
 var wind_brg := 210.0
 var hours := 8.0
 var surveying := false
-var time_scale := 1.0
+var _kn := 0.0                   ## 실제로 나고 있는 속도. 돛을 따라 서서히 붙는다
 
 var found := {}
 var visited := {}
@@ -79,6 +86,8 @@ var _supply_warned := false
 var _land_in_sight := false
 var _ground_warned := false
 var _last_scrape := -99.0
+var _stuck_told := false        ## 물가에 처박혔다고 이미 말했는가
+var _wrecked := false
 
 func _init() -> void:
 	_seed_features()
@@ -114,35 +123,42 @@ func wind_label() -> String:
 		return "옆바람"
 	return "역풍"
 
-func speed_knots() -> float:
-	var s := float(min(sails, 2)) * 0.34 if surveying else float(sails)
+## 돛이 지시하는 속도. 실제 속도(_kn)는 여기까지 서서히 붙는다.
+func ordered_knots() -> float:
+	var kn: float = SAIL_KN[clampi(sails, 0, SAIL_KN.size() - 1)]
+	if surveying:
+		kn *= 0.34              # 측량 중엔 배를 세워 두다시피 한다
 	# 긁힌 배는 물을 먹어 느려진다
 	var wear := lerpf(0.55, 1.0, clampf(hull / HULL_MAX, 0.0, 1.0))
-	return BASE_KN * s * wind_mult() * wear
+	return kn * wind_mult() * wear
 
-# ── 배속 ────────────────────────────────────────────────────────
-func set_time_scale(v: float, reason := "") -> void:
-	if is_equal_approx(v, time_scale):
+func speed_knots() -> float:
+	return _kn
+
+## 돛이 완전히 펴졌을 때에 견준 지금의 속도. 물살·물보라·흔들림이 이걸 본다.
+func speed01() -> float:
+	return clampf(_kn / (SAIL_KN[FULL] * 1.15), 0.0, 1.0)
+
+# ── 돛 ──────────────────────────────────────────────────────────
+func set_sails(stage: int, reason := "") -> void:
+	var s := clampi(stage, 0, SAIL_KN.size() - 1)
+	if s == sails:
 		return
-	time_scale = v
-	time_scale_changed.emit(v, reason)
+	sails = s
+	sails_changed.emit(s, reason)
 
-func cycle_time_scale(dir: int) -> void:
-	var i := TIME_SCALES.find(time_scale)
-	if i < 0:
-		i = 0
-	set_time_scale(TIME_SCALES[clampi(i + dir, 0, TIME_SCALES.size() - 1)])
+func trim_sails(dir: int) -> void:
+	set_sails(sails + dir)
 
-## 볼 것이 생기면 배속이 저절로 풀린다. 그래야 배속이 "콘텐츠 건너뛰기"가 아니라
-## "빈 바다 건너뛰기"가 된다.
+## 볼 것이 생기면 돛이 저절로 줄어든다. 그래야 항해가 "콘텐츠 건너뛰기"가
+## 아니라 "빈 바다 건너뛰기"가 된다.
 ##
-## 순항(1배)까지가 아니라 조심 속도까지 내린다. 하루가 1분이면 순항에서도 초당
-## 7.4km 를 가므로, 1배로만 내려서는 그 일을 볼 시간이 안 생긴다.
+## 시계는 건드리지 않는다. 하루는 언제나 1분이다.
 func _release(reason: String) -> void:
-	if time_scale <= CAREFUL_SCALE:
+	if sails <= CRUISE:
 		return
-	set_time_scale(CAREFUL_SCALE, reason)
-	noted.emit("배속을 늦췄다 — %s" % reason, "warn")
+	set_sails(CRUISE, reason)
+	noted.emit("돛을 줄였다 — %s" % reason, "warn")
 
 # ── 진행 ────────────────────────────────────────────────────────
 ## 침로를 지시한다. 뱃머리는 여기까지 스스로 돌아간다.
@@ -164,7 +180,12 @@ func face(bearing: float) -> void:
 	ordered_heading = heading
 
 func step(dt: float) -> void:
-	var dt_h := dt * CLOCK * time_scale / 3600.0
+	# 시계는 고정이다. 하루는 언제나 실시간 1분.
+	var dt_h := dt * CLOCK / 3600.0
+
+	# 돛을 올리고 내리는 데 걸리는 만큼 속도가 따라온다
+	_kn = move_toward(_kn, ordered_knots(),
+		SAIL_KN[FULL] * dt / maxf(SAIL_EASE, 0.05))
 
 	_wind_phase += dt_h * 0.06
 	wind_brg = fposmod(210.0 + sin(_wind_phase) * 55.0 + sin(_wind_phase * 2.3) * 18.0, 360.0)
@@ -191,8 +212,11 @@ func step(dt: float) -> void:
 
 		# 뱃머리가 물가를 정면으로 밀고 있으면 옆으로 미끄러질 것도 없어서
 		# 아무 말 없이 제자리에 선 채 선체만 깎인다. 그건 알려줘야 한다.
+		# 같은 자리에 처박혀 있는 내내 되풀이하면 알림창에 그것만 남는다.
+		# 한 번만 말하고, 물가에서 벗어나야 다시 말한다.
 		var went := Geo.dist_km(was.x, was.y, lon, lat)
-		if went < km * 0.15 and hours - _last_ground > 2.0:
+		if went < km * 0.15 and not _stuck_told:
+			_stuck_told = true
 			_last_ground = hours
 			noted.emit("물이 얕다. 뱃머리를 돌려야 한다.", "warn")
 			_release("얕은 물")
@@ -232,6 +256,9 @@ func _check_ground(dt_h: float) -> void:
 
 	var d := Geo.coast_dist_km(lon, lat)
 
+	if d > GROUND_HIT_KM:
+		_stuck_told = false
+
 	if d > GROUND_WARN_KM:
 		_ground_warned = false
 		return
@@ -239,22 +266,24 @@ func _check_ground(dt_h: float) -> void:
 	if not _ground_warned:
 		_ground_warned = true
 		noted.emit("여울이다. 뱃머리를 바다 쪽으로 돌려라.", "warn")
-		# 여기서는 순항으로도 초당 몇백 미터라 손쓸 틈이 없다. 크게 내린다.
-		if time_scale > COAST_SCALE:
-			set_time_scale(COAST_SCALE, "여울")
-			noted.emit("배속을 크게 늦췄다 — 여울", "warn")
+		# 순항으로도 실시간 1초에 4km 를 간다. 여기서는 돛을 미속까지 접는다.
+		if sails > SLOW:
+			set_sails(SLOW, "여울")
+			noted.emit("돛을 크게 접었다 — 여울", "warn")
 
 	if d >= GROUND_HIT_KM:
 		return
 
 	var bite := (GROUND_HIT_KM - d) / GROUND_HIT_KM
 	hull = maxf(0.0, hull - HULL_RATE * bite * dt_h)
-	if hours - _last_scrape > 3.0:
-		_last_scrape = hours
-		if hull <= 0.0:
+	if hull <= 0.0:
+		if not _wrecked:
+			_wrecked = true
 			noted.emit("배가 갈라졌다. 더는 못 간다.", "warn")
-		else:
-			noted.emit("바닥이 긁힌다. 선체 %d%%." % int(hull), "warn")
+			set_sails(FURLED, "파선")
+	elif hours - _last_scrape > 3.0:
+		_last_scrape = hours
+		noted.emit("바닥이 긁힌다. 선체 %d%%." % int(hull), "warn")
 
 # ── 자동 해제 조건 다섯 ──────────────────────────────────────────
 ## ① 육지 시인
@@ -323,14 +352,14 @@ func enter_port() -> void:
 	if near_port == null:
 		return
 	var p = near_port
-	sails = 0
-	set_time_scale(CAREFUL_SCALE)
+	set_sails(FURLED, "입항")
 	water_days = 40.0
 	food_days = 40.0
 	_supply_warned = false
 	# 항구에서는 긁힌 데도 손본다
 	var patched := hull < HULL_MAX - 1.0
 	hull = HULL_MAX
+	_wrecked = false
 	if not visited.has(p.name):
 		visited[p.name] = true
 		noted.emit("%s 입항. 닻을 내리고 물과 식량을 채웠다." % p.name, "hi")

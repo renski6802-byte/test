@@ -165,8 +165,8 @@ func add_note(text: String, kind: String) -> void:
 func refresh(v: Voyage, view_brg := NAN) -> void:
 	compass.set_state(v.heading, v.wind_brg, v.ordered_heading, view_brg)
 	_wind.text = "바람 %s" % v.wind_label()
-	var scale := "" if v.time_scale <= 1.0 else "  ×%d" % int(v.time_scale)
-	_speed.text = "%.1f노트 · %s%s" % [v.speed_knots(), v.clock(), scale]
+	var sail: String = Voyage.SAIL_NAME[clampi(v.sails, 0, Voyage.SAIL_NAME.size() - 1)]
+	_speed.text = "%.1f노트 · %s · %s" % [v.speed_knots(), sail, v.clock()]
 	minimap.queue_redraw()
 
 	var near_ok := v.near_port != null

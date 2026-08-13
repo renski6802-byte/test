@@ -93,6 +93,7 @@ TEMPLATE = r"""<title>대항해 프로토타입 — 브라우저에서 바로</t
   <div class="keys">
     <span><kbd>←</kbd><kbd>→</kbd> 조타</span>
     <span><kbd>↑</kbd><kbd>↓</kbd> 돛</span>
+    <span><kbd>1</kbd>–<kbd>4</kbd> 정박·미속·순항·전속</span>
     <span>오른쪽 끌기 — 시점</span>
     <span>휠 — 줌</span>
     <span><kbd>C</kbd> 정면</span>

@@ -12,6 +12,7 @@ var sky_dome: SkyDome
 var stars: StarField
 var coast: CoastMesh
 var _sails_afloat: Array = []
+var _sail_plate_until := 0.0
 var ocean: Ocean
 var rig: CameraRig
 var ship: Node3D
@@ -364,9 +365,8 @@ func _wire() -> void:
 
 	band.asked.connect(func(): voyage.ask_crew())
 	band.port_entered.connect(func(): voyage.enter_port())
-	voyage.time_scale_changed.connect(func(_s: float, reason: String):
-		if reason != "":
-			_flash_release(reason))
+	voyage.sails_changed.connect(func(stage: int, reason: String):
+		_flash_sails(stage, reason))
 	band.chart_toggled.connect(_toggle_chart)
 	band.survey_held.connect(func(down: bool): voyage.surveying = down)
 
@@ -374,9 +374,12 @@ func _wire() -> void:
 	fog.punch(voyage.lon, voyage.lat, voyage.sight_km())
 	chart.add_track(voyage.lon, voyage.lat)
 
-func _flash_release(reason: String) -> void:
+## 돛이 바뀔 때마다 잠깐 띄운다. 저절로 줄어든 것이면 까닭도 같이 적는다.
+func _flash_sails(stage: int, reason: String) -> void:
 	_speedplate.visible = true
-	_speedplate.text = "배속 해제 — %s" % reason
+	_sail_plate_until = _time + (3.4 if reason != "" else 1.8)
+	var name: String = Voyage.SAIL_NAME[clampi(stage, 0, Voyage.SAIL_NAME.size() - 1)]
+	_speedplate.text = "돛 %s — %s" % [name, reason] if reason != "" else "돛 %s" % name
 
 func _toggle_chart() -> void:
 	_chart_layer.visible = not _chart_layer.visible
@@ -399,8 +402,7 @@ func _process(delta: float) -> void:
 		voyage.steer(delta)
 		voyage.step(delta)
 
-	var fast := clampf((voyage.time_scale - 1.0) / 3.0, 0.0, 1.0)
-	ocean.choppiness = lerpf(0.55, 1.75, voyage.sea_state) * lerpf(1.0, 0.28, fast)
+	ocean.choppiness = lerpf(0.55, 1.75, voyage.sea_state)
 
 	_place_ship()
 	rig.place(ship.global_position, voyage.heading, delta)
@@ -418,12 +420,9 @@ func _process(delta: float) -> void:
 func _update_wake() -> void:
 	var a := deg_to_rad(voyage.heading)
 	var fwd := Vector2(sin(a), -cos(a))
-	var sp01 := clampf(voyage.speed_knots() / 10.0, 0.0, 1.0)
+	var sp01 := voyage.speed01()
 	ocean.set_ship(ship.global_position, fwd, sp01)
-
-	# 배속을 올리면 배가 세계를 훌쩍훌쩍 건너뛴다. 물방울은 태어난 자리에 남으므로
-	# 그때 물보라를 계속 뿜으면 배 뒤로 흰 줄이 길게 끌린다. 그래서 끊는다.
-	_spray.set_speed01(sp01 if voyage.time_scale <= 1.0 else 0.0)
+	_spray.set_speed01(sp01)
 
 ## 배를 파도 위에 올린다. 앞뒤·좌우 네 점의 물 높이로 기울기를 구한다.
 func _place_ship() -> void:
@@ -443,7 +442,7 @@ func _place_ship() -> void:
 	var pitch := atan2(hb - hf, 22.0)
 	var roll := atan2(hr - hl, 8.0)
 	# 바람을 옆으로 받으면 배가 기운다. 돛만 돌리면 돛대 높이만큼 옆으로 밀려난다.
-	roll += sin(deg_to_rad(voyage.wind_brg - voyage.heading)) * 0.085 * float(voyage.sails)
+	roll += sin(deg_to_rad(voyage.wind_brg - voyage.heading)) * 0.17 * voyage.speed01()
 
 	var b := Basis(Vector3.UP, -a)
 	b = b * Basis(Vector3.RIGHT, pitch)
@@ -498,13 +497,8 @@ func _update_sky() -> void:
 func _update_hud() -> void:
 	_surveying.visible = voyage.surveying
 
-	_speedplate.visible = not is_equal_approx(voyage.time_scale, 1.0)
-	if _speedplate.visible:
-		var secs := 86400.0 / (Voyage.CLOCK * voyage.time_scale)
-		var day := "%d초" % int(round(secs)) if secs < 90.0 else "%.0f분" % (secs / 60.0)
-		var lab := "%.2f" % voyage.time_scale
-		lab = lab.rstrip("0").rstrip(".")
-		_speedplate.text = "%s배속 — 하루가 %s" % [lab, day]
+	if _speedplate.visible and _time > _sail_plate_until:
+		_speedplate.visible = false
 
 	_camhint.visible = rig.is_off_center()
 	if _camhint.visible:
@@ -544,9 +538,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
 		match (event as InputEventKey).keycode:
 			KEY_UP, KEY_W:
-				voyage.sails = mini(2, voyage.sails + 1)
+				voyage.trim_sails(1)
 			KEY_DOWN, KEY_S:
-				voyage.sails = maxi(0, voyage.sails - 1)
+				voyage.trim_sails(-1)
 			KEY_SPACE:
 				voyage.surveying = true
 			KEY_M:
@@ -557,18 +551,14 @@ func _unhandled_input(event: InputEvent) -> void:
 				voyage.ask_crew()
 			KEY_C:
 				rig.recenter()
-			KEY_BRACKETLEFT:
-				voyage.cycle_time_scale(-1)
-			KEY_BRACKETRIGHT:
-				voyage.cycle_time_scale(1)
 			KEY_1:
-				voyage.set_time_scale(1.0)
+				voyage.set_sails(Voyage.FURLED)
 			KEY_2:
-				voyage.set_time_scale(4.0)
+				voyage.set_sails(Voyage.SLOW)
 			KEY_3:
-				voyage.set_time_scale(16.0)
+				voyage.set_sails(Voyage.CRUISE)
 			KEY_4:
-				voyage.set_time_scale(60.0)
+				voyage.set_sails(Voyage.FULL)
 
 	elif event is InputEventKey and not (event as InputEventKey).pressed:
 		if (event as InputEventKey).keycode == KEY_SPACE:
