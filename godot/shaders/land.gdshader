@@ -22,11 +22,15 @@ uniform sampler2D grain : hint_default_white, filter_linear_mipmap, repeat_enabl
 
 // 물가가 파도에 잠기지 않게 깔아주는 바닥선.
 //
-// 물가 육지는 1/40 로 눌려 3km 앞 해안이 겨우 1~2m 가 되는데, 파도 마루도
+// 물가 육지는 눌려서 3km 앞 해안이 겨우 1~2m 가 되는데, 파도 마루도
 // 그만큼이라 바다가 육지를 뚫고 올라온다. 실제 높이가 floor_ref_m 을 넘는
 // 땅은 반드시 물 위 floor_rise_m 이상에 서게 한다.
 uniform float floor_rise_m = 3.2;
 uniform float floor_ref_m = 12.0;
+// 먼 해안은 상수 바닥선으로는 모자란다. 3.2m 는 300m 밖에서 0.6도라
+// 파도에 묻힌다. 그래서 거리에 비례하는 몫을 함께 두어, 아무리 멀어도
+// 이 각도(라디안)보다는 크게 선다.
+uniform float floor_angle = 0.018;
 
 // 높이 = 그 자리의 가로배율 × 이 값.
 //
@@ -64,7 +68,8 @@ void vertex() {
 	float ease = mix(slope_ease, slope_ease_far, t);
 	// 눌린 높이와 바닥선 중 높은 쪽. 물가에서는 바닥선이, 안쪽에서는
 	// 실제 지형이 이긴다.
-	float lift = floor_rise_m * smoothstep(0.0, floor_ref_m, VERTEX.y);
+	float floor_m = max(floor_rise_m, geo_dist * s * floor_angle);
+	float lift = floor_m * smoothstep(0.0, floor_ref_m, VERTEX.y);
 	VERTEX = vec3(d.x * s, max(VERTEX.y * s * ease, lift), d.y * s);
 }
 

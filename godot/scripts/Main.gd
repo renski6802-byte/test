@@ -319,7 +319,8 @@ func _build_world() -> void:
 func _place_far_sails() -> void:
 	var here := Geo.to_metres(voyage.lon, voyage.lat)
 	for e in _sails_afloat:
-		var off := (Geo.to_metres(e.lon, e.lat) - here) * Geo.LAND_SCALE
+		# 배는 물에 떠 있다. 육지 축척에 놓으면 다섯 배 빨리 다가온다.
+		var off := (Geo.to_metres(e.lon, e.lat) - here) * Geo.WORLD_SCALE
 		var n: Node3D = e.node
 		n.global_position = Vector3(
 			ship.global_position.x + off.x, 0.0, ship.global_position.z + off.z)
