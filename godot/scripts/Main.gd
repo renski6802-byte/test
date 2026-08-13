@@ -7,7 +7,6 @@ const SCENE_RATIO := 78.0
 const BAND_RATIO := 22.0
 
 var voyage: Voyage
-var fog: Fog
 var sky_dome: SkyDome
 var stars: StarField
 var coast: CoastMesh
@@ -36,7 +35,6 @@ var _time := 0.0
 
 func _ready() -> void:
 	voyage = Voyage.new()
-	fog = Fog.new()
 	sky_dome = SkyDome.new()
 
 	_build_layout()
@@ -222,7 +220,6 @@ func _build_layout() -> void:
 	chart.offset_top = 24
 	chart.offset_right = -24
 	chart.offset_bottom = -46
-	chart.fog = fog
 	chart.voyage = voyage
 	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chart_layer.add_child(chart)
@@ -236,7 +233,6 @@ func _build_layout() -> void:
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chart_layer.add_child(hint)
 
-	band.minimap.fog = fog
 	band.minimap.voyage = voyage
 
 func _plate(text: String, col: Color) -> Label:
@@ -359,8 +355,7 @@ func _distant_sail() -> Node3D:
 func _wire() -> void:
 	voyage.noted.connect(func(t: String, k: String): band.add_note(t, k))
 	voyage.spoke.connect(func(w: String, t: String): band.set_say(w, t))
-	voyage.revealed.connect(func(lon: float, lat: float, r: float):
-		fog.punch(lon, lat, r)
+	voyage.revealed.connect(func(lon: float, lat: float, _r: float):
 		chart.add_track(lon, lat))
 
 	band.asked.connect(func(): voyage.ask_crew())
@@ -371,7 +366,6 @@ func _wire() -> void:
 	band.survey_held.connect(func(down: bool): voyage.surveying = down)
 
 	# 출항 자리도 해도에 남긴다
-	fog.punch(voyage.lon, voyage.lat, voyage.sight_km())
 	chart.add_track(voyage.lon, voyage.lat)
 
 ## 돛이 바뀔 때마다 잠깐 띄운다. 저절로 줄어든 것이면 까닭도 같이 적는다.

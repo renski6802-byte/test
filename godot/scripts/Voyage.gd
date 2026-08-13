@@ -45,7 +45,8 @@ const TURN_STEERAGE := 0.35     ## 돛을 내렸을 때 남는 선회력
 ## 배가 지리에 비해 크다는 문제가 여기서 규칙으로 흡수된다 — 해안은 가까이
 ## 가면 안 되는 것이 되고, 접근 자체가 실수가 된다.
 ## 전속이면 실시간 1초에 6.7km 를 간다. 경고선이 8km 면 손쓸 틈이 1초뿐이라
-## 20km 로 물렸다. 여기서 돛이 미속까지 접히므로 실제로는 10초쯤 남는다.
+## 20km 로 물렸다. 경고는 여기서 오고, 돛을 접을지는 뱃사람이 정한다.
+## 안 접으면 2.5초 만에 긁히기 시작한다. 그게 좌초라는 것이다.
 const GROUND_WARN_KM := 20.0    ## 여기부터 경고
 const GROUND_HIT_KM := 3.0      ## 여기부터 긁힌다
 const GROUND_STOP_KM := 1.2     ## 여기서는 아예 못 들어간다. 배가 뭍에 올라앉는다.
@@ -150,16 +151,6 @@ func set_sails(stage: int, reason := "") -> void:
 func trim_sails(dir: int) -> void:
 	set_sails(sails + dir)
 
-## 볼 것이 생기면 돛이 저절로 줄어든다. 그래야 항해가 "콘텐츠 건너뛰기"가
-## 아니라 "빈 바다 건너뛰기"가 된다.
-##
-## 시계는 건드리지 않는다. 하루는 언제나 1분이다.
-func _release(reason: String) -> void:
-	if sails <= CRUISE:
-		return
-	set_sails(CRUISE, reason)
-	noted.emit("돛을 줄였다 — %s" % reason, "warn")
-
 # ── 진행 ────────────────────────────────────────────────────────
 ## 침로를 지시한다. 뱃머리는 여기까지 스스로 돌아간다.
 func set_course(bearing: float) -> void:
@@ -219,7 +210,6 @@ func step(dt: float) -> void:
 			_stuck_told = true
 			_last_ground = hours
 			noted.emit("물이 얕다. 뱃머리를 돌려야 한다.", "warn")
-			_release("얕은 물")
 
 	hours += dt_h
 	_reveal()
@@ -266,10 +256,6 @@ func _check_ground(dt_h: float) -> void:
 	if not _ground_warned:
 		_ground_warned = true
 		noted.emit("여울이다. 뱃머리를 바다 쪽으로 돌려라.", "warn")
-		# 순항으로도 실시간 1초에 4km 를 간다. 여기서는 돛을 미속까지 접는다.
-		if sails > SLOW:
-			set_sails(SLOW, "여울")
-			noted.emit("돛을 크게 접었다 — 여울", "warn")
 
 	if d >= GROUND_HIT_KM:
 		return
@@ -285,14 +271,15 @@ func _check_ground(dt_h: float) -> void:
 		_last_scrape = hours
 		noted.emit("바닥이 긁힌다. 선체 %d%%." % int(hull), "warn")
 
-# ── 자동 해제 조건 다섯 ──────────────────────────────────────────
+# ── 세계가 알려주는 것들 ─────────────────────────────────────────
+## 전에는 이것들이 배속을 저절로 풀었다. 지금은 알리기만 한다.
+## 돛은 오직 뱃사람이 잡는다 — 볼 것이 있으면 스스로 접으면 된다.
 ## ① 육지 시인
 func _check_land() -> void:
 	var near := Geo.coast_dist_km(lon, lat) < sight_km() * 1.4
 	if near and not _land_in_sight:
 		_land_in_sight = true
 		noted.emit("수평선에 육지가 걸린다.", "hi")
-		_release("육지가 보인다")
 	elif not near:
 		_land_in_sight = false
 
@@ -305,12 +292,9 @@ func _check_ports() -> void:
 		if d < sight_km() + arrive_km() * 0.5 and not found.has(p.name):
 			found[p.name] = true
 			noted.emit("수평선에 %s 보인다. 해도에 적어 넣는다." % Geo.josa(p.name, "이", "가"), "hi")
-			_release("%s 발견" % p.name)
 		if d < arrive_km() and d < best_d:
 			best_d = d
 			best = p
-	if best != null and near_port == null:
-		_release("항구가 눈앞이다")
 	near_port = best
 
 ## ④ 악천후
@@ -321,7 +305,6 @@ func _update_weather(dt_h: float) -> void:
 	if storm and not _in_storm:
 		_in_storm = true
 		noted.emit("바다가 거칠어진다. 물마루가 부서진다.", "warn")
-		_release("날씨가 거칠다")
 	elif not storm and _in_storm and sea_state < 0.62:
 		_in_storm = false
 		noted.emit("파도가 잦아들었다.", "")
@@ -335,7 +318,6 @@ func _burn_supplies(dt_h: float) -> void:
 		_supply_warned = true
 		var what := "물" if water_days <= food_days else "식량"
 		noted.emit("%s이 열흘치도 남지 않았다." % what, "warn")
-		_release("보급이 얼마 없다")
 
 ## 다른 배 — 수평선의 돛
 func _check_ships() -> void:
@@ -345,7 +327,6 @@ func _check_ships() -> void:
 		if Geo.dist_km(lon, lat, s.lon, s.lat) < sight_km():
 			sails_seen[s.id] = true
 			noted.emit("수평선에 돛이 하나 보인다.", "hi")
-			_release("다른 배가 보인다")
 
 # ── 항구 ────────────────────────────────────────────────────────
 func enter_port() -> void:

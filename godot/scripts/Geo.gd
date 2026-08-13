@@ -142,6 +142,22 @@ static func poly_africa() -> Array:
 		_poly_af.append(Vector2(-5.20, 33.40))
 	return _poly_af
 
+## 해도의 종이 크기(픽셀). 해도와 미니맵이 이 좌표계를 함께 쓴다.
+##
+## 전에는 Fog 가 들고 있었다. 안 가 본 데를 빗금으로 덮던 그 한 장인데,
+## 덮어 놓으니 무엇이 만들어져 있는지가 안 보였다. 종이는 남기고 덮개만 걷었다.
+const CHART_W := 512
+const CHART_H := 680
+
+## 경위도 → 해도 픽셀
+static func to_chart_px(lon: float, lat: float) -> Vector2:
+	var u := (lon - LON_MIN) / (LON_MAX - LON_MIN)
+	var v := (LAT_MAX - lat) / (LAT_MAX - LAT_MIN)
+	return Vector2(u * CHART_W, v * CHART_H)
+
+static func chart_px_per_km() -> float:
+	return float(CHART_H) / ((LAT_MAX - LAT_MIN) * KM_LAT)
+
 ## 축척 없는 지리 미터 → 경위도. to_metres 의 역.
 static func geo_of_metres(x: float, z: float) -> Vector2:
 	var lat := ORIGIN_LAT + (-z) / (KM_LAT * 1000.0)

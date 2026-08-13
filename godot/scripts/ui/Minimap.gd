@@ -5,7 +5,6 @@ extends Control
 
 const SPAN_DEG := 1.8
 
-var fog: Fog
 var voyage: Voyage
 
 func _ready() -> void:
@@ -13,20 +12,20 @@ func _ready() -> void:
 	resized.connect(queue_redraw)
 
 func _draw() -> void:
-	if fog == null or voyage == null:
+	if voyage == null:
 		return
 	var s: float = minf(size.x, size.y)
 	if s < 8.0:
 		return
 
-	var px_per_deg_lat := float(Fog.H) / (Geo.LAT_MAX - Geo.LAT_MIN)
+	var px_per_deg_lat := float(Geo.CHART_H) / (Geo.LAT_MAX - Geo.LAT_MIN)
 	var src_side := SPAN_DEG * px_per_deg_lat
-	var center := fog.to_px(voyage.lon, voyage.lat)
+	var center := Geo.to_chart_px(voyage.lon, voyage.lat)
 	var src_origin := center - Vector2(src_side, src_side) * 0.5
 	var scale := s / src_side
 
 	var to_local := func(lon: float, lat: float) -> Vector2:
-		return (fog.to_px(lon, lat) - src_origin) * scale
+		return (Geo.to_chart_px(lon, lat) - src_origin) * scale
 
 	draw_rect(Rect2(Vector2.ZERO, size), Pal.CHART_SEA.darkened(0.55))
 
@@ -36,15 +35,9 @@ func _draw() -> void:
 			pts.append(to_local.call(g.x, g.y))
 		Draw2D.fill_poly(get_canvas_item(), pts, Pal.CHART_LAND.darkened(0.45))
 
-	# 아직 안 그린 곳을 덮는다
-	fog.flush()
-	draw_texture_rect_region(fog.texture, Rect2(Vector2.ZERO, Vector2(s, s)),
-		Rect2(src_origin, Vector2(src_side, src_side)))
-
 	for p in Geo.ports():
-		if not voyage.found.has(p.name):
-			continue
-		draw_circle(to_local.call(p.lon, p.lat), 3.0, Pal.BRASS_LIT)
+		draw_circle(to_local.call(p.lon, p.lat), 3.0,
+			Pal.BRASS_LIT if voyage.visited.has(p.name) else Color(Pal.BRASS_LIT, 0.5))
 
 	# 내 배
 	var c := Vector2(s, s) * 0.5

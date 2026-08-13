@@ -1,14 +1,14 @@
 class_name ChartView
 extends Control
 
-## 내가 그린 해도. 지나간 자리만 채워지고, 안 간 곳은 빗금 친 빈 종이로 남는다.
+## 해역 전체를 담은 해도. 항구와 해안선은 처음부터 다 적혀 있고,
+## 내가 지나온 자리는 그 위에 항적으로 남는다.
 
 func _ready() -> void:
 	# 항정선이 도곽 밖으로 뻗지 않도록 가둔다
 	clip_contents = true
 	resized.connect(queue_redraw)
 
-var fog: Fog
 var voyage: Voyage
 var track: PackedVector2Array = PackedVector2Array()   ## 지나온 자리 (경위도)
 
@@ -17,28 +17,43 @@ func add_track(lon: float, lat: float) -> void:
 	if visible:
 		queue_redraw()
 
+## 안에 있는 점에서 한 방향으로 뻗을 때, 종이 가장자리까지의 거리.
+static func _to_edge(from: Vector2, dir: Vector2, paper: Rect2) -> float:
+	var t := 1.0e9
+	if absf(dir.x) > 0.0001:
+		var tx := (paper.position.x - from.x) / dir.x
+		var tx2 := (paper.end.x - from.x) / dir.x
+		t = minf(t, maxf(tx, tx2))
+	if absf(dir.y) > 0.0001:
+		var ty := (paper.position.y - from.y) / dir.y
+		var ty2 := (paper.end.y - from.y) / dir.y
+		t = minf(t, maxf(ty, ty2))
+	return maxf(t, 0.0)
+
 func _draw() -> void:
-	if fog == null or voyage == null:
+	if voyage == null:
 		return
 
 	# 해역 비율을 지키며 가운데에 앉힌다
-	var aspect := float(Fog.W) / float(Fog.H)
+	var aspect := float(Geo.CHART_W) / float(Geo.CHART_H)
 	var w: float = minf(size.x, size.y * aspect)
 	var h: float = w / aspect
 	var origin := (size - Vector2(w, h)) * 0.5
-	var scale := w / float(Fog.W)
+	var scale := w / float(Geo.CHART_W)
 
 	var to_local := func(lon: float, lat: float) -> Vector2:
-		return origin + fog.to_px(lon, lat) * scale
+		return origin + Geo.to_chart_px(lon, lat) * scale
 
 	draw_rect(Rect2(origin, Vector2(w, h)), Pal.CHART_SEA)
 
-	# 항정선망 — 나침도에서 32방위로 뻗는 그물
+	# 항정선망 — 나침도에서 32방위로 뻗는 그물. 종이 밖으로는 안 나간다.
+	var paper := Rect2(origin, Vector2(w, h))
 	for rose in [Vector2(-8.6, 37.6), Vector2(-10.2, 35.2)]:
 		var rc: Vector2 = to_local.call(rose.x, rose.y)
 		for i in 32:
 			var a := float(i) * PI / 16.0
-			draw_line(rc, rc + Vector2(cos(a), sin(a)) * w, Pal.HATCH, 1.0)
+			var dir := Vector2(cos(a), sin(a))
+			draw_line(rc, rc + dir * _to_edge(rc, dir, paper), Pal.HATCH, 1.0)
 
 	for poly in [Geo.poly_iberia(), Geo.poly_africa()]:
 		var pts := PackedVector2Array()
@@ -61,22 +76,18 @@ func _draw() -> void:
 			draw_line(prev, cur, Color(Pal.BRASS, 0.55), 1.4)
 			prev = cur
 
-	# 아직 안 그린 곳
-	fog.flush()
-	draw_texture_rect_region(fog.texture, Rect2(origin, Vector2(w, h)),
-		Rect2(Vector2.ZERO, Vector2(Fog.W, Fog.H)))
-
-	# 한 번 적어 넣은 항구는 종이 위에 남는다 — 안개에 가리지 않는다
+	# 항구. 아직 못 가 본 데는 옅게 둔다 — 가려서가 아니라 아직 안 밟아서다.
 	var font := get_theme_default_font()
 	for p in Geo.ports():
-		if not voyage.found.has(p.name):
-			continue
+		var seen: bool = voyage.visited.has(p.name)
+		var ink: Color = Pal.BRASS if seen else Color(Pal.BRASS, 0.45)
 		var q: Vector2 = to_local.call(p.lon, p.lat)
-		draw_arc(q, 4.5, 0.0, TAU, 16, Pal.BRASS, 1.6, true)
-		draw_circle(q, 1.8, Pal.BRASS)
+		draw_arc(q, 4.5, 0.0, TAU, 16, ink, 1.6, true)
+		if seen:
+			draw_circle(q, 1.8, ink)
 		if font:
 			draw_string(font, q + Vector2(-40.0, 16.0), p.name,
-				HORIZONTAL_ALIGNMENT_CENTER, 80, 11, Pal.BRASS)
+				HORIZONTAL_ALIGNMENT_CENTER, 80, 11, ink)
 
 	# 내 배
 	var c: Vector2 = to_local.call(voyage.lon, voyage.lat)
