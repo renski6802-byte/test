@@ -12,6 +12,7 @@ var stars: StarField
 var coast: CoastMesh
 var _sails_afloat: Array = []
 var _sail_plate_until := 0.0
+var _wake: Array[Vector3] = []   ## 지나온 자리(세계 xz) 와 그때의 속력
 var ocean: Ocean
 var rig: CameraRig
 var ship: Node3D
@@ -111,7 +112,18 @@ func _maybe_capture() -> void:
 			float(get_arg.call("--fps", "12")))
 		return
 
-	await get_tree().create_timer(wait).timeout
+	# --turn 15 처럼 주면 기다리는 동안 초당 그만큼 뱃머리를 돌린다.
+	# 항적이 배를 따라 도는지 물에 남는지 보려면 돌면서 찍어야 한다.
+	var turn := float(get_arg.call("--turn", "0"))
+	if absf(turn) > 0.01:
+		var spent := 0.0
+		while spent < wait:
+			await get_tree().process_frame
+			var d := get_process_delta_time()
+			spent += d
+			voyage.set_course(voyage.ordered_heading + turn * d)
+	else:
+		await get_tree().create_timer(wait).timeout
 	if args.has("--chart"):
 		_toggle_chart()
 		await get_tree().process_frame
@@ -418,6 +430,16 @@ func _update_wake() -> void:
 	var sp01 := voyage.speed01()
 	ocean.set_ship(ship.global_position, fwd, sp01)
 	_spray.set_speed01(sp01)
+
+	# 지나온 자리를 적어 둔다. 일정 거리마다 한 점씩, 마흔 점까지.
+	# 전속에서 25m 마다면 마흔 점이 1km — 스무 해리 남짓의 자국이 남는다.
+	var here := Vector2(ship.global_position.x, ship.global_position.z)
+	if _wake.is_empty() or here.distance_to(
+			Vector2(_wake[_wake.size() - 1].x, _wake[_wake.size() - 1].y)) > 25.0:
+		_wake.append(Vector3(here.x, here.y, sp01))
+		if _wake.size() > 40:
+			_wake.remove_at(0)
+		ocean.set_wake(_wake)
 
 ## 배를 파도 위에 올린다. 앞뒤·좌우 네 점의 물 높이로 기울기를 구한다.
 func _place_ship() -> void:

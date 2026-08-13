@@ -29,6 +29,48 @@ uniform vec2 ship_pos = vec2(0.0);
 uniform vec2 ship_dir = vec2(0.0, -1.0);
 uniform float ship_speed01 = 0.0;
 
+// 지나온 자국.
+//
+// 위의 V 는 뱃머리에 붙어 있어서 배가 돌면 통째로 같이 돈다. 그건 항적이
+// 아니라 배의 일부다. 진짜 항적은 물에 남아 그 자리에 있어야 하므로,
+// 배가 지나온 자리를 세계 좌표로 적어 두고 그 선을 따라 거품을 깐다.
+// xy = 자리, z = 그때의 속력.
+uniform vec3 wake_pts[40];
+uniform int wake_count = 0;
+uniform float wake_spread = 0.11;    // 뒤로 갈수록 벌어지는 비율
+uniform float wake_width = 11.0;     // 갓 지나온 자리의 폭(m)
+
+// 점에서 선분까지의 거리
+float seg_dist(vec2 p, vec2 a, vec2 b) {
+	vec2 ab = b - a;
+	float len2 = dot(ab, ab);
+	float t = len2 > 0.0001 ? clamp(dot(p - a, ab) / len2, 0.0, 1.0) : 0.0;
+	return length(p - (a + ab * t));
+}
+
+// 이 자리에 남아 있는 항적의 진하기
+float wake_trail(vec2 p) {
+	float acc = 0.0;
+	int n = min(wake_count, 40);
+	for (int i = 0; i < n - 1; i++) {
+		vec3 a = wake_pts[i];
+		vec3 b = wake_pts[i + 1];
+		// 멀면 건너뛴다. 거의 모든 조각이 여기서 끝난다.
+		vec2 mid = (a.xy + b.xy) * 0.5;
+		float rough = length(p - mid);
+		float reach = length(b.xy - a.xy) * 0.5 + 90.0;
+		if (rough > reach) {
+			continue;
+		}
+		// 뒤로 갈수록(i 가 작을수록) 오래된 자국이라 넓고 옅다
+		float age = 1.0 - float(i) / float(max(n - 1, 1));
+		float w = wake_width + age * 260.0 * wake_spread;
+		float d = seg_dist(p, a.xy, b.xy);
+		acc = max(acc, exp(-d / w) * a.z * (1.0 - age * 0.55));
+	}
+	return acc;
+}
+
 varying vec3 world_pos;
 varying vec3 wave_normal;
 varying float crest;
@@ -116,9 +158,9 @@ void fragment() {
 	float t = TIME;
 
 	// ── 잔결. 주기가 서로 안 맞는 세 배율을 각각 다른 각도로 겹쳐 타일 무늬를 깬다
-	float f1 = clamp(1.0 - dist / 2600.0, 0.0, 1.0);
-	float f2 = clamp(1.0 - dist / 900.0, 0.0, 1.0);
-	float f3 = clamp(1.0 - dist / 260.0, 0.0, 1.0);
+	float f1 = clamp(1.0 - dist / 3600.0, 0.0, 1.0);
+	float f2 = clamp(1.0 - dist / 1300.0, 0.0, 1.0);
+	float f3 = clamp(1.0 - dist / 380.0, 0.0, 1.0);
 
 	vec3 r1 = texture(ripple_normals, rot2(world_pos.xz, 0.0) / 41.0
 		+ vec2(t * 0.008, t * 0.005)).xyz * 2.0 - 1.0;
@@ -170,17 +212,26 @@ void fragment() {
 	float wake = 0.0;
 	if (along < 6.0 && ship_speed01 > 0.01) {
 		float back = max(0.0, -along);
+		// 항적이 남는 길이는 속도를 따라간다. 상수로 두면 34m — 전속에서
+		// 0.8초치라 배가 물을 밀고 간 자국이 아니라 뱃꼬리에 붙은 얼룩이 된다.
+		float churn_len = 34.0 + 190.0 * ship_speed01;
+		float arms_len = 90.0 + 420.0 * ship_speed01;
 		// 배 바로 뒤에 휘저어진 물. 좁게 시작해 천천히 벌어지고 금세 잦아든다.
-		float churn = exp(-pow(abs(side) / (4.5 + back * 0.075), 2.0)) * exp(-back / 34.0);
+		float churn = exp(-pow(abs(side) / (4.5 + back * 0.075), 2.0)) * exp(-back / churn_len);
 		// 좌우로 벌어지는 두 팔. 이건 선이라서 가늘어야 팔로 보인다.
 		float arm = abs(abs(side) - 2.5 - back * 0.30);
-		float arms = exp(-arm * 0.85) * exp(-back / 90.0) * 0.55;
+		float arms = exp(-arm * 0.85) * exp(-back / arms_len) * 0.55;
 		wake = (churn * 0.7 + arms) * ship_speed01;
 		// 고르게 칠하면 페인트로 보인다. 굵게 한 번, 잘게 한 번 얼룩을 준다.
 		float churny = vnoise(world_pos.xz * 0.55 + vec2(t * 0.15, 0.0))
 			* 0.65 + vnoise(world_pos.xz * 2.1 - vec2(0.0, t * 0.4)) * 0.35;
 		wake *= 0.35 + 0.85 * churny;
 	}
+
+	// 물에 남아 있는 자국. 배가 돌아도 이건 제자리에 있다.
+	float trail = wake_trail(world_pos.xz);
+	trail *= 0.45 + 0.75 * vnoise(world_pos.xz * 0.9 + vec2(0.0, t * 0.05));
+	wake = max(wake, trail * 0.85);
 
 	// ── 거품. 고르게 칠하면 페인트로 보이므로 얼룩덜룩하게.
 	float patch = vnoise(world_pos.xz * 0.7);

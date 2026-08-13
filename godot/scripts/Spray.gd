@@ -12,6 +12,7 @@ const BOW_Z := -11.5            ## 뱃머리 조금 안쪽. 여기서 물이 갈
 const SIDE_X := 2.1
 
 var _emitters: Array[CPUParticles3D] = []
+var _base: Array = []            ## 속도 1 에서 얼마나 튀는가의 기준값
 var _speed := 0.0
 
 func _ready() -> void:
@@ -25,7 +26,7 @@ func _ready() -> void:
 		p.initial_velocity_min = 2.8
 		p.initial_velocity_max = 6.0
 		add_child(p)
-		_emitters.append(p)
+		_keep(p)
 
 	# 뱃머리 바로 아래에서 부서지는 흰 물살. 낮고 얇게 깔린다.
 	var f := _make(Vector3(0.0, 0.10, BOW_Z - 0.6), Vector3(0.0, 0.45, -1.0),
@@ -36,7 +37,17 @@ func _ready() -> void:
 	f.gravity = Vector3(0.0, -6.0, 0.0)
 	f.emission_box_extents = Vector3(2.0, 0.12, 0.5)
 	add_child(f)
-	_emitters.append(f)
+	_keep(f)
+
+## 속도에 따라 흔들 값들은 원래 값을 적어 둬야 한다. 매 프레임 곱하면
+## 값이 눈덩이처럼 불어난다.
+func _keep(p: CPUParticles3D) -> void:
+	_emitters.append(p)
+	_base.append({
+		"vmin": p.initial_velocity_min, "vmax": p.initial_velocity_max,
+		"life": p.lifetime,
+		"smin": p.scale_amount_min, "smax": p.scale_amount_max,
+	})
 
 func _make(pos: Vector3, dir: Vector3, amount: int, life: float, size: float) -> CPUParticles3D:
 	var p := CPUParticles3D.new()
@@ -106,13 +117,28 @@ static func _puff() -> ImageTexture:
 	_puff_tex = ImageTexture.create_from_image(img)
 	return _puff_tex
 
-## 빠를수록 높이, 많이 튄다. 멈추면 아예 끊는다.
+## 빠를수록 높이, 멀리, 오래 튄다. 멈추면 아예 끊는다.
+##
+## 전에는 speed_scale 하나만 만졌다. 그러면 빠를 때 물방울이 "많이" 나올 뿐
+## 무게가 안 생긴다 — 물은 뱃머리에서 떠밀려 뒤로 흐르다 가라앉아야 한다.
+## 그래서 속도에 따라 튀는 세기와 사는 시간, 알갱이 크기를 함께 올린다.
 func set_speed01(v: float) -> void:
 	_speed = clampf(v, 0.0, 1.0)
 	var on := _speed > 0.08
-	for p in _emitters:
+	for i in _emitters.size():
+		var p: CPUParticles3D = _emitters[i]
 		p.emitting = on
-		if on:
-			# 느릴 때 같은 세기로 튀면 정박 중에도 물이 끓는 것처럼 보인다
-			p.speed_scale = lerpf(0.55, 1.35, _speed)
-			p.lifetime_randomness = 0.4
+		if not on:
+			continue
+		# 느릴 때 같은 세기로 튀면 정박 중에도 물이 끓는 것처럼 보인다
+		p.speed_scale = lerpf(0.55, 1.35, _speed)
+		p.lifetime_randomness = 0.4
+		var base: Dictionary = _base[i]
+		# 뱃머리가 세게 파고들수록 물이 높이 솟는다
+		p.initial_velocity_min = base.vmin * lerpf(0.6, 2.1, _speed)
+		p.initial_velocity_max = base.vmax * lerpf(0.7, 2.4, _speed)
+		# 오래 남아야 뒤로 흘러가다 가라앉는 것이 보인다
+		p.lifetime = base.life * lerpf(0.7, 1.9, _speed)
+		# 덩어리도 굵어진다
+		p.scale_amount_min = base.smin * lerpf(0.75, 1.5, _speed)
+		p.scale_amount_max = base.smax * lerpf(0.8, 1.7, _speed)

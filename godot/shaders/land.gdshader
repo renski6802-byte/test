@@ -39,14 +39,21 @@ uniform float floor_angle = 0.018;
 // 듯 반듯해지고, 산줄기를 세우면 물가가 눈앞의 벽이 된다.
 uniform float slope_ease = 2.6;       // 물가
 uniform float slope_ease_far = 3.4;   // 안쪽 · 먼 해안
-uniform float haze_km = 32.0;
+// 대기 원근이 닿는 거리(km).
+//
+// 32km 였다. 그러면 20km 밖 해안이 이미 절반쯤 하늘색이라 흰 빙벽처럼
+// 보이고, 눈앞의 물가까지 허옇게 뜬다. 실제로 대기가 땅빛을 그만큼 먹는
+// 것은 훨씬 먼 거리에서다.
+uniform float haze_km = 95.0;
+uniform float haze_max = 0.80;   // 아무리 멀어도 제 색을 이만큼은 남긴다
 // 파도선이 닿는 실제 높이(m). 넓게 잡으면 물가가 통째로 하얘져
 // 모래해안과 물거품이 같은 색이 된다.
 uniform float surf_m = 4.0;
 uniform float wave_time = 0.0;
 
 uniform vec3 sand_color : source_color = vec3(0.50, 0.45, 0.34);
-uniform vec3 grass_color : source_color = vec3(0.31, 0.36, 0.21);
+uniform vec3 grass_color : source_color = vec3(0.29, 0.35, 0.20);
+uniform vec3 grass_dry : source_color = vec3(0.46, 0.42, 0.25);   // 마른 풀 · 밭
 uniform vec3 rock_color : source_color = vec3(0.42, 0.39, 0.34);
 uniform vec3 rock_dark : source_color = vec3(0.29, 0.27, 0.24);
 uniform vec3 surf_color : source_color = vec3(0.93, 0.95, 0.94);
@@ -84,7 +91,9 @@ void fragment() {
 	float rough_n = g1.r * 0.55 + g2.g * 0.30 + g3.b * 0.15;
 
 	// ── 바위인가 풀인가 모래인가.
+	// 바위는 경사에서만 나는 것이 아니다. 높은 데는 나무가 못 자라 살이 드러난다.
 	float rocky = clamp(COLOR.r * 0.55 + smoothstep(0.20, 0.58, slope), 0.0, 1.0);
+	rocky = clamp(rocky + smoothstep(160.0, 430.0, geo_h) * 0.45, 0.0, 1.0);
 	rocky = clamp(rocky + (rough_n - 0.5) * 0.35, 0.0, 1.0);
 	float sandy = (1.0 - smoothstep(8.0, 40.0, geo_h)) * (1.0 - smoothstep(0.08, 0.24, slope));
 
@@ -96,7 +105,14 @@ void fragment() {
 		mix(rock_dark, rock_color, smoothstep(-0.35, 0.35, band)), strata);
 	rock = mix(rock, rock * 1.10, g3.r);
 
-	vec3 col = mix(grass_color * (0.72 + 0.56 * rough_n), rock, rocky);
+	// ── 땅빛. 온 들판이 한 가지 초록이면 판때기로 보인다. 큰 무늬로
+	// 밭과 마른 풀을 섞고, 높은 데는 마르고 바래게 둔다.
+	float patch = texture(grain, geo_xz / 9000.0 + vec2(0.37, 0.11)).g;
+	patch = clamp(patch * 0.7 + texture(grain, geo_xz / 3100.0).b * 0.3, 0.0, 1.0);
+	vec3 green = mix(grass_color, grass_dry, smoothstep(0.34, 0.74, patch));
+	green = mix(green, grass_dry * 0.88, smoothstep(70.0, 280.0, geo_h));
+
+	vec3 col = mix(green * (0.74 + 0.52 * rough_n), rock, rocky);
 	col = mix(col, sand_color * (0.82 + 0.36 * g2.b), sandy * (1.0 - rocky * 0.7));
 
 	// ── 물가의 흰 파도선. 밀려왔다 빠지는 만큼 높이가 오르내린다.
@@ -111,7 +127,7 @@ void fragment() {
 	vec3 look = normalize((INV_VIEW_MATRIX * vec4(normalize(VERTEX), 0.0)).xyz);
 	vec3 air = sky_color(look) * 0.92;
 
-	ALBEDO = mix(col, air, clamp(haze * 0.95, 0.0, 0.95));
+	ALBEDO = mix(col, air, clamp(haze, 0.0, haze_max));
 	// 빛은 진짜 지형의 법선으로 받는다. 눌린 법선으로 받으면 빛을 스치듯 받아
 	// 새까매진다. 눌린 세계는 그리기 위한 장치일 뿐이다.
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);

@@ -180,6 +180,20 @@ func set_ship(world_xz: Vector3, dir_xz: Vector2, speed01: float) -> void:
 
 ## 바다가 하늘을 비추려면 하늘 셰이더와 같은 값을 봐야 한다.
 ## 색 자체가 아니라 하늘을 만드는 재료를 그대로 넘긴다.
+## 배가 지나온 자리. 가까운 바다만 쓴다 — 먼 고리는 1.6km 밖에서 시작하는데
+## 자국은 그보다 짧다.
+func set_wake(pts: Array) -> void:
+	if _near_mat == null:
+		return
+	# vec3 배열 uniform 은 PackedVector3Array 가 아니라 Array 로 넣어야 한다.
+	# Packed 로 넣으면 조용히 무시되어 항적이 통째로 원점에 몰린다.
+	var buf: Array = []
+	buf.resize(40)
+	for i in 40:
+		buf[i] = pts[i] if i < pts.size() else Vector3.ZERO
+	_near_mat.set_shader_parameter("wake_pts", buf)
+	_near_mat.set_shader_parameter("wake_count", pts.size())
+
 func sky_materials() -> Array:
 	return [_near_mat, _far_mat]
 
