@@ -100,7 +100,8 @@ func _maybe_capture() -> void:
 			voyage.lon = float(parts[0])
 			voyage.lat = float(parts[1])
 	voyage.face(float(get_arg.call("--heading", str(voyage.heading))))
-	voyage.sails = int(get_arg.call("--sails", "2"))
+	voyage.set_sails(int(get_arg.call("--sails", "2")))
+	ShipModel.set_sail_stage(ship, voyage.sails)
 	rig.yaw = float(get_arg.call("--yaw", "0"))
 	rig.pitch = float(get_arg.call("--pitch", str(rig.pitch)))
 	rig.distance = float(get_arg.call("--dist", str(rig.distance)))
@@ -293,7 +294,12 @@ func _build_world() -> void:
 	_sun = DirectionalLight3D.new()
 	_sun.light_energy = 1.15
 	_sun.shadow_enabled = true
-	_sun.directional_shadow_max_distance = 900.0
+	# 그림자 지도를 배 주위로 바짝 조인다. 900m 로 벌려두면 26m 짜리 배에
+	# 텍셀이 몇 개 안 떨어져 제 몸에 얼룩진 그림자가 생긴다.
+	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	_sun.directional_shadow_max_distance = 190.0
+	_sun.shadow_bias = 0.02
+	_sun.shadow_normal_bias = 1.4
 	_viewport.add_child(_sun)
 
 	ocean = Ocean.new()
@@ -310,6 +316,7 @@ func _build_world() -> void:
 
 	ship = ShipModel.build()
 	sails_node = ship.get_node_or_null("Sails")
+	ShipModel.set_sail_stage(ship, voyage.sails)
 	_spray = Spray.new()
 	_spray.name = "Spray"
 	ship.add_child(_spray)
@@ -374,6 +381,7 @@ func _wire() -> void:
 	band.asked.connect(func(): voyage.ask_crew())
 	band.port_entered.connect(func(): voyage.enter_port())
 	voyage.sails_changed.connect(func(stage: int, reason: String):
+		ShipModel.set_sail_stage(ship, stage)
 		_flash_sails(stage, reason))
 	band.chart_toggled.connect(_toggle_chart)
 	band.survey_held.connect(func(down: bool): voyage.surveying = down)
@@ -495,10 +503,19 @@ func _update_sky() -> void:
 	var lit_alt := rad_to_deg(asin(clampf(lit_dir.y, -1.0, 1.0)))
 	_sun.light_specular = lerpf(0.10, 1.0, clampf(lit_alt / 55.0, 0.0, 1.0))
 
-	# 밤에는 하늘이 어두워 하늘빛만으로는 아무것도 안 보인다. 바닥을 깔아준다.
-	_env.ambient_light_color = Color(0.17, 0.23, 0.36)
-	_env.ambient_light_energy = lerpf(0.75, 1.0, day)
-	_env.ambient_light_sky_contribution = lerpf(0.18, 0.5, day)
+	# 환경광은 우리가 직접 색을 정해 넣는다.
+	#
+	# 호환성 렌더러에서 하늘을 광원으로 삼는 길(AMBIENT_SOURCE_SKY)은 우리
+	# 하늘 셰이더와 잘 안 맞아, 그늘진 쪽이 거의 검정이 됐다. 배는 화면에
+	# 늘 있는 물건이라 그게 그대로 인상이 된다.
+	#
+	# 그래서 하늘빛을 GDScript 쪽에서 직접 뽑아 바닥으로 깐다. 낮에는 하늘색,
+	# 밤에는 푸른 달빛. 실제로 그늘진 뱃전은 하늘과 물에서 올라오는 빛을 받아
+	# 이만큼 밝다. 바다는 제 빛을 EMISSION 으로 내므로 여기에 안 흔들린다.
+	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_env.ambient_light_color = Color(0.16, 0.21, 0.33).lerp(
+		Color(0.52, 0.62, 0.78), day)
+	_env.ambient_light_energy = lerpf(0.9, 1.55, day)
 
 	# 안개는 지평 언저리 하늘을 따라간다. 다만 하늘색 그대로 쓰면 먼바다가
 	# 수평선에서 하늘에 녹아 사라진다. 실제로는 멀어져도 물빛이 남는다.
