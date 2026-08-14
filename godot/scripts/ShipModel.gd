@@ -117,18 +117,33 @@ static func _hull(s: Dictionary) -> MeshInstance3D:
 			col.append(_section(t, float(j) / float(RINGS - 1), s))
 		grid.append(col)
 
+	# 널은 배 길이를 따라 눕는다. 판자 지도의 v 가 널을 가로지르는 쪽이므로,
+	# 선체를 도는 방향(j)을 v 에, 배 길이(i)를 u 에 준다.
+	var uv := func(i: int, j: int) -> Vector2:
+		return Vector2(float(i) / float(STATIONS - 1) * 2.6,
+			float(j) / float(RINGS - 1) * 3.2)
+
 	for i in STATIONS - 1:
 		for j in RINGS - 1:
 			var a: Vector3 = grid[i][j]
 			var b: Vector3 = grid[i + 1][j]
 			var c: Vector3 = grid[i + 1][j + 1]
 			var d: Vector3 = grid[i][j + 1]
-			_quad(st, a, b, c, d)
+			var ua: Vector2 = uv.call(i, j)
+			var ub: Vector2 = uv.call(i + 1, j)
+			var uc: Vector2 = uv.call(i + 1, j + 1)
+			var ud: Vector2 = uv.call(i, j + 1)
+			_quad_uv(st, a, b, c, d, ua, ub, uc, ud)
 			# 좌현은 거울상. 감는 방향이 뒤집히므로 순서를 바꾼다.
-			_quad(st, _flip(d), _flip(c), _flip(b), _flip(a))
+			_quad_uv(st, _flip(d), _flip(c), _flip(b), _flip(a), ud, uc, ub, ua)
 
 	st.generate_normals()
-	return _mesh(st, "Hull", Color("7a6040"), 0.84)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.name = "Hull"
+	mi.mesh = st.commit()
+	mi.material_override = _tex_mat("plank", Color("c8ae86"), 0.84)
+	return mi
 
 ## 갑판. 좌우 뱃전 사이를 덮는다.
 static func _deck(s: Dictionary) -> MeshInstance3D:
@@ -139,9 +154,17 @@ static func _deck(s: Dictionary) -> MeshInstance3D:
 		var t1 := float(i + 1) / float(STATIONS - 1)
 		var a := _section(t0, V_DECK, s)
 		var b := _section(t1, V_DECK, s)
-		_quad(st, a, b, _flip(b), _flip(a))
+		# 갑판 널도 배 길이를 따라 눕는다. 폭 쪽(좌현↔우현)이 널을 가로지른다.
+		_quad_uv(st, a, b, _flip(b), _flip(a),
+			Vector2(t0 * 3.0, 0.0), Vector2(t1 * 3.0, 0.0),
+			Vector2(t1 * 3.0, 1.4), Vector2(t0 * 3.0, 1.4))
 	st.generate_normals()
-	return _mesh(st, "Deck", Color("a08b5e"), 0.88)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.name = "Deck"
+	mi.mesh = st.commit()
+	mi.material_override = _tex_mat("plank", Color("d8c49a"), 0.88)
+	return mi
 
 ## 난간 안쪽 벽과 그 위를 덮는 테두리.
 static func _bulwark_inner(s: Dictionary) -> MeshInstance3D:
@@ -155,19 +178,30 @@ static func _bulwark_inner(s: Dictionary) -> MeshInstance3D:
 			var a1 := _inset(_section(t0, 1.0, s), side)
 			var b0 := _inset(_section(t1, V_DECK, s), side)
 			var b1 := _inset(_section(t1, 1.0, s), side)
+			# 널이 배 길이를 따라 눕는다. 난간 높이(0.95m)에 널 서너 장.
+			var ua := Vector2(t0 * 3.0, 0.0)
+			var ub := Vector2(t1 * 3.0, 0.0)
+			var uc := Vector2(t1 * 3.0, 0.62)
+			var ud := Vector2(t0 * 3.0, 0.62)
 			if side > 0.0:
-				_quad(st, a1, b1, b0, a0)
+				_quad_uv(st, a1, b1, b0, a0, ud, uc, ub, ua)
 			else:
-				_quad(st, a0, b0, b1, a1)
+				_quad_uv(st, a0, b0, b1, a1, ua, ub, uc, ud)
 			# 난간 위를 덮는 테두리
 			var o0 := _section(t0, 1.0, s)
 			var o1 := _section(t1, 1.0, s)
 			if side > 0.0:
-				_quad(st, o0, o1, b1, a1)
+				_quad_uv(st, o0, o1, b1, a1, ua, ub, uc, ud)
 			else:
-				_quad(st, _flip(a1), _flip(b1), _flip(o1), _flip(o0))
+				_quad_uv(st, _flip(a1), _flip(b1), _flip(o1), _flip(o0), ud, uc, ub, ua)
 	st.generate_normals()
-	return _mesh(st, "Bulwark", Color("94553a"), 0.86)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.name = "Bulwark"
+	mi.mesh = st.commit()
+	# 붉게 칠한 판자. 칠 위로도 결이 비친다.
+	mi.material_override = _tex_mat("plank", Color("a8654f"), 0.88)
+	return mi
 
 ## 고물의 평평한 면. 이 시대 배의 인상이 여기서 난다.
 static func _transom(s: Dictionary) -> MeshInstance3D:
@@ -178,9 +212,16 @@ static func _transom(s: Dictionary) -> MeshInstance3D:
 		var v1 := float(j + 1) / float(RINGS - 1)
 		var a := _section(0.0, v0, s)
 		var b := _section(0.0, v1, s)
-		_quad(st, a, b, _flip(b), _flip(a))
+		_quad_uv(st, a, b, _flip(b), _flip(a),
+			Vector2(0.0, v0 * 2.2), Vector2(0.0, v1 * 2.2),
+			Vector2(1.6, v1 * 2.2), Vector2(1.6, v0 * 2.2))
 	st.generate_normals()
-	return _mesh(st, "Transom", Color("6f5433"), 0.86)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.name = "Transom"
+	mi.mesh = st.commit()
+	mi.material_override = _tex_mat("plank", Color("b99a6e"), 0.86)
+	return mi
 
 ## 뱃전을 도는 두꺼운 띠(웨일). 배가 납작해 보이지 않게 잡아준다.
 static func _wale(s: Dictionary, v: float, half: float, col: Color) -> MeshInstance3D:
@@ -219,12 +260,16 @@ static func _castle(s: Dictionary, t0: float, t1: float, rise: float,
 		var tb: float = lerpf(t0, t1, float(i + 1) / float(steps))
 		var a: Vector3 = pt.call(ta, rise)
 		var b: Vector3 = pt.call(tb, rise)
-		_quad(floor_st, a, b, _flip(b), _flip(a))
+		var ua := Vector2(ta * 3.0, 0.0)
+		var ub := Vector2(tb * 3.0, 0.0)
+		var uc := Vector2(tb * 3.0, 1.1)
+		var ud := Vector2(ta * 3.0, 1.1)
+		_quad_uv(floor_st, a, b, _flip(b), _flip(a), ua, ub, uc, ud)
 		# 옆벽
 		var a0: Vector3 = pt.call(ta, 0.0)
 		var b0: Vector3 = pt.call(tb, 0.0)
-		_quad(wall_st, a, b, b0, a0)
-		_quad(wall_st, _flip(a0), _flip(b0), _flip(b), _flip(a))
+		_quad_uv(wall_st, a, b, b0, a0, ua, ub, uc, ud)
+		_quad_uv(wall_st, _flip(a0), _flip(b0), _flip(b), _flip(a), ud, uc, ub, ua)
 
 	# 층의 앞뒤를 막는다
 	var edge: float = t1 if t0 < 0.5 else t0
@@ -233,9 +278,21 @@ static func _castle(s: Dictionary, t0: float, t1: float, rise: float,
 	_quad(wall_st, e_top, _flip(e_top), _flip(e_bot), e_bot)
 
 	floor_st.generate_normals()
+	floor_st.generate_tangents()
 	wall_st.generate_normals()
-	node.add_child(_mesh(floor_st, "바닥", Color("a08b5e"), 0.88))
-	node.add_child(_mesh(wall_st, "벽", Color("7d5e38"), 0.86))
+	wall_st.generate_tangents()
+
+	var fl := MeshInstance3D.new()
+	fl.name = "바닥"
+	fl.mesh = floor_st.commit()
+	fl.material_override = _tex_mat("plank", Color("d8c49a"), 0.88)
+	node.add_child(fl)
+
+	var wl := MeshInstance3D.new()
+	wl.name = "벽"
+	wl.mesh = wall_st.commit()
+	wl.material_override = _tex_mat("plank", Color("c0a172"), 0.86)
+	node.add_child(wl)
 	return node
 
 ## 고물에 달린 키.
@@ -255,7 +312,12 @@ static func _rudder(s: Dictionary) -> MeshInstance3D:
 		_quad(st, q[0], q[1], q[2], q[3])
 		_quad(st, q[3], q[2], q[1], q[0])
 	st.generate_normals()
-	return _mesh(st, "Rudder", Color("6b5335"), 0.88)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.name = "Rudder"
+	mi.mesh = st.commit()
+	mi.material_override = _tex_mat("plank", Color("b09468"), 0.88)
+	return mi
 
 # ── 돛대와 돛 ───────────────────────────────────────────────────
 ## 돛은 돛 단계에 따라 켜고 끈다. Sails 아래에 단계별로 묶어 둔다.
@@ -387,7 +449,8 @@ static func _mast(base: Vector3, height: float, radius: float,
 	mi.name = name
 	mi.mesh = cyl
 	mi.position = base + Vector3(0, height * 0.5 - 0.4, 0)
-	mi.material_override = _mat(Color("7c6a46"), 0.9)
+	mi.material_override = _tex_mat("plank", Color("bda887"), 0.9,
+		Vector3(1.0, height / 6.0, 1.0))
 	return mi
 
 ## 망대. 돛대 위에 앉는 통.
@@ -415,7 +478,8 @@ static func _yard(at: Vector3, length: float) -> MeshInstance3D:
 	mi.mesh = cyl
 	mi.position = at
 	mi.rotation.z = PI * 0.5
-	mi.material_override = _mat(Color("6d5c3c"), 0.9)
+	mi.material_override = _tex_mat("plank", Color("a89272"), 0.9,
+		Vector3(1.0, length / 5.0, 1.0))
 	return mi
 
 ## 두 점을 잇는 막대. 돛대 줄과 기움돛대에 쓴다.
@@ -452,14 +516,23 @@ static func _sail(pos: Vector3, sz: Vector2, belly: float) -> MeshInstance3D:
 		var y := (0.5 - v) * sz.y - sag
 		var z := -belly * sin(PI * u) * sin(PI * v * 0.85 + 0.28)
 		return Vector3(x, y, z)
+	var uv := func(i: int, j: int) -> Vector2:
+		return Vector2(float(i) / float(cols), float(j) / float(rows))
 	for j in rows:
 		for i in cols:
-			_quad(st, pt.call(i, j), pt.call(i, j + 1),
-				pt.call(i + 1, j + 1), pt.call(i + 1, j))
+			_quad_uv(st, pt.call(i, j), pt.call(i, j + 1),
+				pt.call(i + 1, j + 1), pt.call(i + 1, j),
+				uv.call(i, j), uv.call(i, j + 1),
+				uv.call(i + 1, j + 1), uv.call(i + 1, j))
 	st.generate_normals()
-	var mi := _mesh(st, "돛", Color("d8cbaa"), 0.78)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.name = "돛"
+	mi.mesh = st.commit()
 	mi.position = pos
-	mi.material_override = _mat(Color("d8cbaa"), 0.78, true)
+	# 천 폭이 세로로 이어 붙은 것이라 u 를 돛 폭에 맞춰 늘인다
+	mi.material_override = _tex_mat("canvas", Color("cfc4a6"), 0.82,
+		Vector3(sz.x / 7.0, sz.y / 7.0, 1.0), true)
 	return mi
 
 ## 접어 활대에 말아둔 돛.
@@ -473,7 +546,8 @@ static func _furled(at: Vector3, length: float) -> MeshInstance3D:
 	mi.mesh = cyl
 	mi.position = at
 	mi.rotation.z = PI * 0.5
-	mi.material_override = _mat(Color("cfc3a2"), 0.85)
+	mi.material_override = _tex_mat("canvas", Color("e6dcc2"), 0.86,
+		Vector3(length / 5.0, 1.0, 1.0))
 	return mi
 
 # ── 손 ──────────────────────────────────────────────────────────
@@ -493,6 +567,16 @@ static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
 	st.add_vertex(a); st.add_vertex(b); st.add_vertex(c)
 	st.add_vertex(a); st.add_vertex(c); st.add_vertex(d)
 
+## UV 를 함께 실어 보내는 사각형. 판자결이 어느 쪽으로 흐를지가 여기서 정해진다.
+static func _quad_uv(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3,
+		ua: Vector2, ub: Vector2, uc: Vector2, ud: Vector2) -> void:
+	st.set_uv(ua); st.add_vertex(a)
+	st.set_uv(ub); st.add_vertex(b)
+	st.set_uv(uc); st.add_vertex(c)
+	st.set_uv(ua); st.add_vertex(a)
+	st.set_uv(uc); st.add_vertex(c)
+	st.set_uv(ud); st.add_vertex(d)
+
 static func _mesh(st: SurfaceTool, name: String, col: Color,
 		rough: float) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
@@ -504,6 +588,25 @@ static func _mesh(st: SurfaceTool, name: String, col: Color,
 static func _mat(col: Color, rough: float, two_sided := false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = col
+	m.roughness = rough
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	if two_sided:
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m
+
+## 구워둔 지도(assets/tex)를 입힌 재질.
+##
+## albedo_color 는 흰색에 가깝게 두고 색은 지도가 낸다. 여기에 색을 곱하면
+## 널마다 다른 결이 한 가지 색으로 눌려 다시 판때기가 된다.
+static func _tex_mat(kind: String, tint: Color, rough: float,
+		uv_scale := Vector3.ONE, two_sided := false) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = tint
+	m.albedo_texture = load("res://assets/tex/%s_albedo.png" % kind)
+	m.normal_enabled = true
+	m.normal_texture = load("res://assets/tex/%s_normal.png" % kind)
+	m.normal_scale = 1.0
+	m.uv1_scale = uv_scale
 	m.roughness = rough
 	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	if two_sided:
