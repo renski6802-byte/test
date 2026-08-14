@@ -21,6 +21,11 @@ const SHORE_WANDER := 0.0
 
 var _mesh: MeshInstance3D
 var _mat: ShaderMaterial
+## 지형을 지으면서 찍어둔 점들(지리 x, 높이, 지리 z).
+## 땅 위에 무언가를 세우려면 그 자리의 땅 높이를 알아야 하는데, 지형이
+## 해안선을 따라 흐르는 격자라 좌표만으로 되짚는 식이 없다. 그래서 지을 때
+## 나온 값을 그대로 남겨둔다.
+var _samples := PackedVector3Array()
 
 func _ready() -> void:
 	_mesh = MeshInstance3D.new()
@@ -53,6 +58,36 @@ func follow(ship_world: Vector3, ship_lon: float, ship_lat: float, t: float) -> 
 ## 하늘 셰이더와 같은 값을 봐야 육지가 물러나는 색이 하늘과 어긋나지 않는다.
 func sky_material() -> ShaderMaterial:
 	return _mat
+
+## 그 자리 둘레에서 땅을 찾는다. 가장 높은 곳(등대·망루) 또는 물가에 가장
+## 가까운 낮은 곳(마을)을 돌려준다. 못 찾으면 빈 값.
+##
+## 표지물을 손으로 짚은 높이에 세웠더니 지형과 어긋나 물 위에 떠 있었다.
+## 지형이 스스로 자리를 알려주게 하는 편이 언제나 맞는다.
+func ground_near(geo: Vector2, radius_m: float, want_high: bool) -> Vector3:
+	var best := Vector3.INF
+	var best_score := -1e30
+	var r2 := radius_m * radius_m
+	for p in _samples:
+		var dx := p.x - geo.x
+		var dz := p.z - geo.y
+		var d2 := dx * dx + dz * dz
+		if d2 > r2:
+			continue
+		# 높은 데를 찾을 땐 높이가, 물가를 찾을 땐 가까움이 점수다.
+		var score: float = p.y - sqrt(d2) * 0.004 if want_high \
+			else -sqrt(d2) - absf(p.y - 12.0) * 1.5
+		if score > best_score:
+			best_score = score
+			best = p
+	return best
+
+## 격자에서 몇 점 걸러 남긴다. 전부 남기면 십만 점이라 찾는 데 오래 걸린다.
+static func _keep_samples(grid: Array, out: Array) -> void:
+	for r in range(0, grid.size(), 2):
+		var row: Array = grid[r]
+		for c in range(0, row.size(), 2):
+			out.append(row[c])
 
 # ── 노이즈 ──────────────────────────────────────────────────────
 ## 자리만 넣으면 늘 같은 값이 나오는 난수. 지형을 저장하지 않고 다시 만들 수 있다.
@@ -179,12 +214,16 @@ static func _reach(at: Vector3, nrm: Vector3) -> float:
 func _build() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# 지형을 지으면서 나온 점을 받아 둔다. 땅 위에 무언가를 세울 때 쓴다.
+	var acc: Array = []
 	for coast in [Geo.COAST_IB, Geo.COAST_AF]:
-		_add_coast(st, coast, Geo.coast_types(coast))
+		_add_coast(st, coast, Geo.coast_types(coast), acc)
+	_samples = PackedVector3Array(acc)
 	return st.commit()
 
 ## 해안선을 따라 조밀한 격자를 깔고 깎는다.
-static func _add_coast(st: SurfaceTool, coast: Array, kinds: Array) -> void:
+static func _add_coast(st: SurfaceTool, coast: Array, kinds: Array,
+		out_samples: Array) -> void:
 	var n := coast.size()
 	if n < 2:
 		return
@@ -255,6 +294,8 @@ static func _add_coast(st: SurfaceTool, coast: Array, kinds: Array) -> void:
 			h += (ridge + fine) * e.amp * _ridge_strength(e.kind) * mask
 			row.append(Vector3(base.x, maxf(h, 0.0), base.z))
 		grid.append(row)
+
+	_keep_samples(grid, out_samples)
 
 	# 법선은 격자 이웃에서 바로 구한다. generate_normals 는 이 크기에서 느리다.
 	var nrms: Array = []

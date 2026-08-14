@@ -22,8 +22,27 @@ uniform vec2 coast_af[16];
 uniform vec2 geo_origin = vec2(-8.1, 36.5);   // ORIGIN_LON, ORIGIN_LAT
 uniform float km_lat = 111.19;
 
+// 높이에 먹이는 값. 물가와 안쪽이 다르다 — land.gdshader 의 주석 참고.
+uniform float slope_ease = 2.6;
+uniform float slope_ease_far = 3.4;
+
 float land_scale_at(float r) {
 	return mix(near_scale, far_scale, smoothstep(blend_near_m, blend_far_m, r));
+}
+
+float land_ease_at(float r) {
+	return mix(slope_ease, slope_ease_far, smoothstep(blend_near_m, blend_far_m, r));
+}
+
+// 지리 좌표의 한 점을 그려지는 자리로 옮긴다.
+//
+// 땅 위에 세우는 것은 무엇이든 이 함수를 거쳐야 한다. 등대가 지형과 다른
+// 식으로 눌리면 절벽 옆이 아니라 허공에 뜬다.
+vec3 warp_land(vec2 geo_xz, float h) {
+	vec2 d = geo_xz - ship_geo;
+	float r = length(d);
+	float s = land_scale_at(r);
+	return vec3(d.x * s, h * s * land_ease_at(r), d.y * s);
 }
 
 // 그려진 거리 R 을 주면 원래 지리 거리 r 을 돌려준다.

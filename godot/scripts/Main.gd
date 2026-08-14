@@ -10,6 +10,7 @@ var voyage: Voyage
 var sky_dome: SkyDome
 var stars: StarField
 var coast: CoastMesh
+var marks: Landmarks
 var _sails_afloat: Array = []
 var _sail_plate_until := 0.0
 var _wake: Array[Vector3] = []   ## 지나온 자리(세계 xz) 와 그때의 속력
@@ -49,7 +50,7 @@ func _ready() -> void:
 ## 육지와 바다를 나누는 값들. 셋(육지·가까운 바다·먼 바다)이 같은 값을 봐야
 ## 물가가 한 줄로 떨어진다. 그래서 한자리에서만 넣는다.
 func _land_cut_materials() -> Array:
-	var mats: Array = [coast.sky_material()]
+	var mats: Array = [coast.sky_material(), marks.sky_material()]
 	mats.append_array(ocean.sky_materials())
 	return mats
 
@@ -314,6 +315,12 @@ func _build_world() -> void:
 	coast.name = "Coast"
 	_viewport.add_child(coast)
 
+	# 해안에 세워둔 표지물. 육지와 같은 함수로 눌리므로 지형 위에 선다.
+	marks = Landmarks.new()
+	marks.name = "Landmarks"
+	_viewport.add_child(marks)
+	marks.plant(coast)
+
 	ship = ShipModel.build()
 	sails_node = ship.get_node_or_null("Sails")
 	ShipModel.set_sail_stage(ship, voyage.sails)
@@ -424,6 +431,7 @@ func _process(delta: float) -> void:
 	ocean.follow(ship.global_position)
 	# 육지는 바다와 다른 축척이라 배를 기준으로 따로 눌러 놓는다
 	coast.follow(ship.global_position, voyage.lon, voyage.lat, _time)
+	marks.follow(ship.global_position, voyage.lon, voyage.lat)
 	_follow_land_cut()
 	_place_far_sails()
 	_update_wake()
@@ -482,7 +490,7 @@ func _update_sky() -> void:
 	var dusk := sky_dome.dusk01()
 
 	# 하늘과 바다가 같은 값을 봐야 물에 비친 하늘이 실제 하늘과 어긋나지 않는다
-	var mats: Array = [_sky, coast.sky_material()]
+	var mats: Array = [_sky, coast.sky_material(), marks.sky_material()]
 	mats.append_array(ocean.sky_materials())
 	sky_dome.push(mats)
 

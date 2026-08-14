@@ -28,17 +28,19 @@ uniform sampler2D grain : hint_default_white, filter_linear_mipmap, repeat_enabl
 uniform float floor_rise_m = 3.2;
 uniform float floor_ref_m = 12.0;
 // 먼 해안은 상수 바닥선으로는 모자란다. 3.2m 는 300m 밖에서 0.6도라
-// 파도에 묻힌다. 그래서 거리에 비례하는 몫을 함께 두어, 아무리 멀어도
-// 이 각도(라디안)보다는 크게 선다.
-uniform float floor_angle = 0.018;
-
-// 높이 = 그 자리의 가로배율 × 이 값.
+// 파도에 묻힌다. 그래서 거리에 비례하는 몫을 함께 둔다.
 //
-// 가까운 쪽과 먼 쪽에 다른 값을 준다. 하나로 묶으면 둘 중 하나가 망가진다 —
-// 물가가 프레임을 다 먹지 않게 낮추면 안쪽 산줄기까지 눌려 하늘금이 자로 그은
-// 듯 반듯해지고, 산줄기를 세우면 물가가 눈앞의 벽이 된다.
-uniform float slope_ease = 2.6;       // 물가
-uniform float slope_ease_far = 3.4;   // 안쪽 · 먼 해안
+// 다만 세게 주면 안 된다 — 0.018 로 뒀더니 30km 밖에서 바닥선이 11m 가 되어
+// 150m 짜리 절벽(9.7m)보다 높아졌다. 온 내륙이 판판한 대지가 되고
+// 물가만 하얗게 도드라졌다. 실제 지형이 언제나 이겨야 한다.
+uniform float floor_angle = 0.008;
+// 그리고 위로 못 넘게 막는다. 각도 몫만 두면 100km 밖에서 바닥선이 20m 가
+// 되는데 그 자리 절벽은 12.7m 라, 낮은 땅이 절벽보다 높이 서서 수평선에
+// 판판한 흰 대지가 생긴다. 바닥선은 파도를 넘기려는 것이지 산이 아니다.
+uniform float floor_cap_m = 6.0;
+
+// 높이 배율(slope_ease / slope_ease_far)은 land_cut.gdshaderinc 에 있다.
+// 땅 위에 세우는 것들이 지형과 똑같이 눌려야 하기 때문이다.
 // 대기 원근이 닿는 거리(km).
 //
 // 32km 였다. 그러면 20km 밖 해안이 이미 절반쯤 하늘색이라 흰 빙벽처럼
@@ -54,6 +56,7 @@ uniform float wave_time = 0.0;
 uniform vec3 sand_color : source_color = vec3(0.50, 0.45, 0.34);
 uniform vec3 grass_color : source_color = vec3(0.29, 0.35, 0.20);
 uniform vec3 grass_dry : source_color = vec3(0.46, 0.42, 0.25);   // 마른 풀 · 밭
+uniform vec3 forest_color : source_color = vec3(0.14, 0.21, 0.12);   // 숲
 uniform vec3 rock_color : source_color = vec3(0.42, 0.39, 0.34);
 uniform vec3 rock_dark : source_color = vec3(0.29, 0.27, 0.24);
 uniform vec3 surf_color : source_color = vec3(0.93, 0.95, 0.94);
@@ -68,16 +71,17 @@ void vertex() {
 	geo_h = VERTEX.y;
 	geo_nrm = normalize(NORMAL);
 
-	vec2 d = VERTEX.xz - ship_geo;
-	geo_dist = length(d);
+	geo_dist = length(VERTEX.xz - ship_geo);
 	float s = land_scale_at(geo_dist);
-	float t = smoothstep(blend_near_m, blend_far_m, geo_dist);
-	float ease = mix(slope_ease, slope_ease_far, t);
+	vec3 w = warp_land(VERTEX.xz, VERTEX.y);
 	// 눌린 높이와 바닥선 중 높은 쪽. 물가에서는 바닥선이, 안쪽에서는
 	// 실제 지형이 이긴다.
-	float floor_m = max(floor_rise_m, geo_dist * s * floor_angle);
-	float lift = floor_m * smoothstep(0.0, floor_ref_m, VERTEX.y);
-	VERTEX = vec3(d.x * s, max(VERTEX.y * s * ease, lift), d.y * s);
+	float floor_m = min(max(floor_rise_m, geo_dist * s * floor_angle), floor_cap_m);
+	// 바닥선은 낮은 땅만 받쳐준다. 높은 땅까지 받치면 산이 대지가 된다.
+	float band = smoothstep(0.0, floor_ref_m, VERTEX.y)
+		* (1.0 - smoothstep(floor_ref_m * 3.0, floor_ref_m * 8.0, VERTEX.y));
+	float lift = floor_m * band;
+	VERTEX = vec3(w.x, max(w.y, lift), w.z);
 }
 
 void fragment() {
@@ -112,7 +116,23 @@ void fragment() {
 	vec3 green = mix(grass_color, grass_dry, smoothstep(0.34, 0.74, patch));
 	green = mix(green, grass_dry * 0.88, smoothstep(70.0, 280.0, geo_h));
 
+	// ── 숲.
+	//
+	// 나무를 한 그루씩 세우지 않는다. 3km 밖의 나무는 0.2도라 점도 안 되고,
+	// 실제로 눈에 들어오는 것은 그루가 아니라 숲의 얼룩과 그 가장자리다.
+	// 그래서 무늬로 깐다 — 대신 나무가 자랄 만한 데에만 깐다.
+	//   물가의 모래밭에는 없고, 절벽에도 없고, 수목한계 위에도 없다.
+	float wood = texture(grain, geo_xz / 1700.0 + vec2(0.61, 0.29)).r;
+	wood = wood * 0.66 + texture(grain, geo_xz / 430.0).g * 0.34;
+	float can_grow = smoothstep(10.0, 45.0, geo_h)            // 물가는 헐벗었다
+		* (1.0 - smoothstep(200.0, 380.0, geo_h))             // 위는 수목한계
+		* (1.0 - smoothstep(0.26, 0.52, slope));              // 절벽엔 못 붙는다
+	float forest = smoothstep(0.46, 0.68, wood) * can_grow;
+
 	vec3 col = mix(green * (0.74 + 0.52 * rough_n), rock, rocky);
+	// 숲은 잎이 겹쳐 그늘이 지므로 같은 초록이라도 훨씬 어둡다
+	col = mix(col, forest_color * (0.78 + 0.44 * texture(grain, geo_xz / 95.0).b),
+		forest * 0.88);
 	col = mix(col, sand_color * (0.82 + 0.36 * g2.b), sandy * (1.0 - rocky * 0.7));
 
 	// ── 물가의 흰 파도선. 밀려왔다 빠지는 만큼 높이가 오르내린다.
@@ -132,6 +152,8 @@ void fragment() {
 	// 새까매진다. 눌린 세계는 그리기 위한 장치일 뿐이다.
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	ROUGHNESS = mix(0.96, 0.72, rocky) * (1.0 - surf * 0.35);
+	// 숲은 잎이 빛을 흩어 반들거리지 않는다
+	ROUGHNESS = mix(ROUGHNESS, 1.0, forest * 0.7);
 	SPECULAR = mix(0.08, 0.24, surf);
 	METALLIC = 0.0;
 }
