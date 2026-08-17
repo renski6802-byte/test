@@ -305,12 +305,15 @@ static func _rudder(s: Dictionary) -> MeshInstance3D:
 		Vector3(0.0, -s.draft * 0.95, z + 1.5), Vector3(0.0, -s.draft * 0.95, z + 0.2),
 	]
 	var th := 0.16
+	# 널이 위아래로 선다. UV 없이 generate_tangents 를 부르면
+	# "UVs are required to generate tangents" 로 조용히 실패한다.
+	var uv := [Vector2(0.0, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 0.7), Vector2(0.0, 0.7)]
 	for side in [th, -th]:
 		var q := []
 		for p in pts:
 			q.append(Vector3(side, p.y, p.z))
-		_quad(st, q[0], q[1], q[2], q[3])
-		_quad(st, q[3], q[2], q[1], q[0])
+		_quad_uv(st, q[0], q[1], q[2], q[3], uv[0], uv[1], uv[2], uv[3])
+		_quad_uv(st, q[3], q[2], q[1], q[0], uv[3], uv[2], uv[1], uv[0])
 	st.generate_normals()
 	st.generate_tangents()
 	var mi := MeshInstance3D.new()
