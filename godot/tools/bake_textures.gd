@@ -14,7 +14,9 @@ extends SceneTree
 ## 굽는 것: 판자 · 돛천 · 회벽 · 기와 · 모래 · 풀 · 바위.
 ## 각각 색(albedo)과 요철(normal) 두 장. 요철은 높이밭에서 미분해 만든다.
 
-const SIZE := 512
+# 512 로 굽다가 올렸다. 웹 한도(16MB)를 놓고 데스크톱으로 가기로 했으니
+# 더 아낄 이유가 없다. 눈앞에서 판자 이음매와 회벽 결이 뭉개지지 않는다.
+const SIZE := 1024
 const OUT := "res://assets/tex/"
 
 func _initialize() -> void:
@@ -184,7 +186,7 @@ func _tile(u: float, v: float) -> Array:
 func _sand(u: float, v: float) -> Array:
 	var ripple: float = sin((u * 9.0 + _fbm(Vector2(u, v), 4, 2, 9) * 3.0) * TAU)
 	var grit := _fbm(Vector2(u, v), 150, 2, 61)
-	var col := Color(0.72, 0.65, 0.50) * (0.90 + 0.10 * ripple + 0.14 * (grit - 0.5))
+	var col := Color(0.56, 0.50, 0.38) * (0.90 + 0.10 * ripple + 0.14 * (grit - 0.5))
 	return [col.clamp(), 0.5 + 0.14 * ripple + 0.22 * (grit - 0.5)]
 
 func _grass(u: float, v: float) -> Array:

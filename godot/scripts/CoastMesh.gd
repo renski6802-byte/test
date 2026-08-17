@@ -35,6 +35,11 @@ func _ready() -> void:
 	_mat = ShaderMaterial.new()
 	_mat.shader = load("res://shaders/land.gdshader")
 	_mat.set_shader_parameter("grain", _grain(256))
+	for e in [["sand", "sand"], ["grass", "grass"], ["rock", "rock"]]:
+		_mat.set_shader_parameter(e[1] + "_tex",
+			load("res://assets/tex/%s_albedo.png" % e[0]))
+		_mat.set_shader_parameter(e[1] + "_nrm",
+			load("res://assets/tex/%s_normal.png" % e[0]))
 	_mat.set_shader_parameter("near_scale", Geo.LAND_NEAR_SCALE)
 	_mat.set_shader_parameter("far_scale", Geo.LAND_SCALE)
 	_mesh.material_override = _mat

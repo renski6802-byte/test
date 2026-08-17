@@ -23,13 +23,26 @@ uniform float girth = 2.6;
 uniform float haze_km = 95.0;
 uniform float haze_max = 0.80;
 
+// 구워둔 재질. 한 메시에 회벽·기와·돌이 섞여 있으므로 어느 것을 쓸지는
+// 정점이 COLOR.a 에 실어 보낸다 — 0 회벽, 0.5 기와, 1 돌.
+uniform sampler2D stucco_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D tile_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D rock_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D stucco_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D tile_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D rock_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+
 varying vec3 geo_nrm;
 varying float geo_dist;
 varying vec3 tint;
+varying float kind;
+varying vec2 skin;
 
 void vertex() {
 	// COLOR 에 그 물건의 색을 실어 보낸다. 여러 채를 메시 하나에 담기 때문이다.
 	tint = COLOR.rgb;
+	kind = COLOR.a;
+	skin = UV;
 	geo_nrm = normalize(NORMAL);
 
 	// UV2.x 에 그 물건이 선 자리(지리)를 담아두면 좋겠지만 vec2 하나로는
@@ -47,13 +60,33 @@ void vertex() {
 }
 
 void fragment() {
+	// 셋 중 하나를 고른다. 분기 대신 섞는다 — 어차피 값이 0 · 0.5 · 1 이라
+	// 가중치가 하나만 살아남는다.
+	float w_tile = 1.0 - min(abs(kind - 0.5) * 2.0, 1.0);
+	float w_rock = smoothstep(0.5, 1.0, kind);
+	float w_stu = max(0.0, 1.0 - w_tile - w_rock);
+
+	vec3 skin_col = texture(stucco_tex, skin).rgb * w_stu
+		+ texture(tile_tex, skin).rgb * w_tile
+		+ texture(rock_tex, skin).rgb * w_rock;
+	vec3 skin_n = texture(stucco_nrm, skin).rgb * w_stu
+		+ texture(tile_nrm, skin).rgb * w_tile
+		+ texture(rock_nrm, skin).rgb * w_rock;
+
 	float haze = 1.0 - exp(-(geo_dist * 0.001) / max(haze_km, 1.0));
 	vec3 look = normalize((INV_VIEW_MATRIX * vec4(normalize(VERTEX), 0.0)).xyz);
 	vec3 air = sky_color(look) * 0.92;
 
-	ALBEDO = mix(tint, air, clamp(haze, 0.0, haze_max));
-	NORMAL = normalize((VIEW_MATRIX * vec4(normalize(geo_nrm), 0.0)).xyz);
-	ROUGHNESS = 0.9;
+	// 재질이 색을 내고 tint 는 색기만 얹는다(붉은 띠, 이끼 낀 벽 따위).
+	ALBEDO = mix(skin_col * tint, air, clamp(haze, 0.0, haze_max));
+
+	// 접선이 없는 메시라 세로축을 접선으로 삼는다. 벽은 대체로 서 있는
+	// 면이라 이걸로 충분하다. 멀어지면 지운다 — 지글거림을 막는다.
+	vec3 b = skin_n * 2.0 - 1.0;
+	float k = 0.7 * (1.0 - smoothstep(900.0, 6000.0, geo_dist));
+	vec3 n = normalize(geo_nrm + vec3(b.x, b.y, 0.0) * k);
+	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
+	ROUGHNESS = mix(0.92, 0.78, w_tile);
 	SPECULAR = 0.1;
 	METALLIC = 0.0;
 }

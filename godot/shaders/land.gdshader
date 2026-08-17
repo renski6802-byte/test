@@ -20,6 +20,28 @@ render_mode specular_schlick_ggx, cull_disabled, shadows_disabled;
 
 uniform sampler2D grain : hint_default_white, filter_linear_mipmap, repeat_enable;
 
+// 구워둔 땅 재질. 지리 좌표로 입히므로 UV 가 없다 — 미터를 그대로 나눈다.
+uniform sampler2D sand_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D grass_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D rock_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D sand_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D grass_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D rock_nrm : hint_normal, filter_linear_mipmap, repeat_enable;
+
+// 한 장이 덮는 실제 크기(m). 두 배율을 겹쳐 타일 자국을 깬다.
+uniform float tex_m = 240.0;
+uniform float tex_m_far = 1550.0;
+
+// 서로 안 맞는 두 배율로 같은 장을 겹쳐 뜬다.
+//
+// 한 배율로만 뜨면 240m 마다 같은 무늬가 되풀이되어 격자가 눈에 보인다.
+// 배수 관계가 아닌 두 크기로 겹치면 되풀이 주기가 사실상 사라진다.
+vec3 tile2(sampler2D t, vec2 p) {
+	vec3 a = texture(t, p / tex_m).rgb;
+	vec3 b = texture(t, p / tex_m_far + vec2(0.37, 0.61)).rgb;
+	return a * 0.62 + b * 0.38;
+}
+
 // 물가가 파도에 잠기지 않게 깔아주는 바닥선.
 //
 // 물가 육지는 눌려서 3km 앞 해안이 겨우 1~2m 가 되는데, 파도 마루도
@@ -88,6 +110,11 @@ void fragment() {
 	vec3 n = normalize(geo_nrm);
 	float slope = 1.0 - clamp(n.y, 0.0, 1.0);      // 0 평지 … 1 절벽
 
+	// ── 구워둔 재질을 지리 좌표로 뜬다.
+	vec3 t_sand = tile2(sand_tex, geo_xz);
+	vec3 t_grass = tile2(grass_tex, geo_xz);
+	vec3 t_rock = tile2(rock_tex, geo_xz);
+
 	// ── 잔결. 서로 안 맞는 세 배율을 겹쳐 타일 무늬를 깬다.
 	vec3 g1 = texture(grain, geo_xz / 2600.0).rgb;
 	vec3 g2 = texture(grain, geo_xz / 620.0).rgb;
@@ -99,22 +126,32 @@ void fragment() {
 	float rocky = clamp(COLOR.r * 0.55 + smoothstep(0.20, 0.58, slope), 0.0, 1.0);
 	rocky = clamp(rocky + smoothstep(160.0, 430.0, geo_h) * 0.45, 0.0, 1.0);
 	rocky = clamp(rocky + (rough_n - 0.5) * 0.35, 0.0, 1.0);
-	float sandy = (1.0 - smoothstep(8.0, 40.0, geo_h)) * (1.0 - smoothstep(0.08, 0.24, slope));
+	// 모래는 물가에만. 예전엔 40m 아래 평지를 전부 모래로 봐서 해안이
+	// 사막처럼 넓은 크림색 띠가 됐다.
+	float sandy = (1.0 - smoothstep(2.5, 13.0, geo_h))
+		* (1.0 - smoothstep(0.08, 0.24, slope));
 
 	// ── 층리. 경사가 급한 자리에만 긋는다.
 	// 온 땅에 그으면 완만한 곳이 등고선 테라스가 된다.
 	float band = sin(geo_h * 0.42 + (g2.r - 0.5) * 3.4);
 	float strata = smoothstep(0.30, 0.62, slope);
-	vec3 rock = mix(rock_color,
-		mix(rock_dark, rock_color, smoothstep(-0.35, 0.35, band)), strata);
-	rock = mix(rock, rock * 1.10, g3.r);
+	vec3 rock = t_rock * mix(vec3(1.0),
+		mix(vec3(0.68), vec3(1.06), smoothstep(-0.35, 0.35, band)), strata);
 
 	// ── 땅빛. 온 들판이 한 가지 초록이면 판때기로 보인다. 큰 무늬로
 	// 밭과 마른 풀을 섞고, 높은 데는 마르고 바래게 둔다.
 	float patch = texture(grain, geo_xz / 9000.0 + vec2(0.37, 0.11)).g;
 	patch = clamp(patch * 0.7 + texture(grain, geo_xz / 3100.0).b * 0.3, 0.0, 1.0);
-	vec3 green = mix(grass_color, grass_dry, smoothstep(0.34, 0.74, patch));
-	green = mix(green, grass_dry * 0.88, smoothstep(70.0, 280.0, geo_h));
+	// 밝기는 구운 재질이 정한다.
+	//
+	// 처음엔 재질에 예전 색상수를 곱하고 배수로 되살렸는데, 두 번 곱한 꼴이
+	// 되어 물가가 크림색으로 날아갔다. 재질은 이미 제 색으로 구워져 있으므로
+	// 색상수는 밝기를 건드리지 않는 색기(1 언저리의 비율)로만 쓴다.
+	vec3 green = t_grass;
+	green = mix(green, green * vec3(1.30, 1.16, 0.80),
+		smoothstep(0.34, 0.74, patch));                       // 밭 · 마른 풀
+	green = mix(green, green * vec3(1.16, 1.08, 0.86),
+		smoothstep(70.0, 280.0, geo_h));                      // 높은 데는 바랜다
 
 	// ── 숲.
 	//
@@ -124,16 +161,16 @@ void fragment() {
 	//   물가의 모래밭에는 없고, 절벽에도 없고, 수목한계 위에도 없다.
 	float wood = texture(grain, geo_xz / 1700.0 + vec2(0.61, 0.29)).r;
 	wood = wood * 0.66 + texture(grain, geo_xz / 430.0).g * 0.34;
-	float can_grow = smoothstep(10.0, 45.0, geo_h)            // 물가는 헐벗었다
+	float can_grow = smoothstep(6.0, 26.0, geo_h)             // 물가는 헐벗었다
 		* (1.0 - smoothstep(200.0, 380.0, geo_h))             // 위는 수목한계
 		* (1.0 - smoothstep(0.26, 0.52, slope));              // 절벽엔 못 붙는다
-	float forest = smoothstep(0.46, 0.68, wood) * can_grow;
+	float forest = smoothstep(0.42, 0.66, wood) * can_grow;
 
-	vec3 col = mix(green * (0.74 + 0.52 * rough_n), rock, rocky);
+	vec3 col = mix(green * (0.88 + 0.24 * rough_n), rock, rocky);
 	// 숲은 잎이 겹쳐 그늘이 지므로 같은 초록이라도 훨씬 어둡다
 	col = mix(col, forest_color * (0.78 + 0.44 * texture(grain, geo_xz / 95.0).b),
 		forest * 0.88);
-	col = mix(col, sand_color * (0.82 + 0.36 * g2.b), sandy * (1.0 - rocky * 0.7));
+	col = mix(col, t_sand, sandy * (1.0 - rocky * 0.7));
 
 	// ── 물가의 흰 파도선. 밀려왔다 빠지는 만큼 높이가 오르내린다.
 	float tide = 0.62 + 0.38 * sin(wave_time * 0.9 + geo_xz.x * 0.0016 + geo_xz.y * 0.0011);
@@ -150,6 +187,15 @@ void fragment() {
 	ALBEDO = mix(col, air, clamp(haze, 0.0, haze_max));
 	// 빛은 진짜 지형의 법선으로 받는다. 눌린 법선으로 받으면 빛을 스치듯 받아
 	// 새까매진다. 눌린 세계는 그리기 위한 장치일 뿐이다.
+	// 재질의 요철을 실제 지형 법선 위에 얹는다.
+	//
+	// 접선이 없는 메시라 정식 탄젠트 공간을 못 쓴다. 대신 지리 좌표축을
+	// 그대로 접선으로 삼는다 — 땅은 대체로 눕는 면이라 이걸로 충분하다.
+	vec3 bump = mix(mix(tile2(grass_nrm, geo_xz), tile2(sand_nrm, geo_xz), sandy),
+		tile2(rock_nrm, geo_xz), rocky) * 2.0 - 1.0;
+	// 멀어지면 요철을 지운다. 안 그러면 수평선이 지글거린다.
+	float bump_k = 0.55 * (1.0 - smoothstep(1200.0, 9000.0, geo_dist));
+	n = normalize(n + vec3(bump.x, 0.0, bump.y) * bump_k);
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	ROUGHNESS = mix(0.96, 0.72, rocky) * (1.0 - surf * 0.35);
 	// 숲은 잎이 빛을 흩어 반들거리지 않는다

@@ -40,11 +40,17 @@ const MARKS := [
 	{ "kind": "마을", "lon": -6.840, "lat": 34.030, "h": 110.0 },
 ]
 
-const WHITE := Color(0.86, 0.84, 0.78)
-const RED := Color(0.62, 0.26, 0.20)
-const STONE := Color(0.66, 0.62, 0.53)
-const ROOF := Color(0.55, 0.28, 0.19)
-const DARK := Color(0.24, 0.22, 0.20)
+## 색기(tint). 재질이 색을 내므로 여기서는 1 언저리로만 민다.
+const WHITE := Color(1.00, 0.99, 0.96)
+const RED := Color(1.05, 0.42, 0.32)
+const STONE := Color(1.14, 1.02, 0.84)
+const ROOF := Color(1.00, 0.96, 0.94)
+const DARK := Color(0.30, 0.28, 0.26)
+
+## 어느 재질로 입힐 것인가. 셰이더가 COLOR.a 로 읽는다.
+const SKIN_STUCCO := 0.0
+const SKIN_TILE := 0.5
+const SKIN_ROCK := 1.0
 
 var _mesh: MeshInstance3D
 var _mat: ShaderMaterial
@@ -59,6 +65,11 @@ func _ready() -> void:
 	_mat.shader = load("res://shaders/landmark.gdshader")
 	_mat.set_shader_parameter("near_scale", Geo.LAND_NEAR_SCALE)
 	_mat.set_shader_parameter("far_scale", Geo.LAND_SCALE)
+	for k in ["stucco", "tile", "rock"]:
+		_mat.set_shader_parameter(k + "_tex",
+			load("res://assets/tex/%s_albedo.png" % k))
+		_mat.set_shader_parameter(k + "_nrm",
+			load("res://assets/tex/%s_normal.png" % k))
 	_mesh.material_override = _mat
 	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# 셰이더가 정점을 옮기므로 원래 상자로는 화면 밖으로 판정되어 사라진다
@@ -106,19 +117,26 @@ func _build() -> ArrayMesh:
 ## 등대. 위로 갈수록 가늘어지는 흰 탑에 붉은 띠, 꼭대기에 검은 등실.
 func _lighthouse(st: SurfaceTool, base: Vector2, ground: float, h: float) -> void:
 	var r := h * 0.080
-	_cyl(st, base, ground, ground + h * 0.86, r, r * 0.62, WHITE, 10)
+	_cyl(st, base, ground, ground + h * 0.86, r, r * 0.62, WHITE, 10,
+		SKIN_STUCCO, 11.0)
 	# 붉은 띠 두 줄 — 이것이 있어야 멀리서도 등대로 읽힌다
-	_cyl(st, base, ground + h * 0.30, ground + h * 0.42, r * 0.90, r * 0.85, RED, 10)
-	_cyl(st, base, ground + h * 0.58, ground + h * 0.70, r * 0.78, r * 0.74, RED, 10)
+	_cyl(st, base, ground + h * 0.30, ground + h * 0.42, r * 0.90, r * 0.85, RED, 10,
+		SKIN_STUCCO, 11.0)
+	_cyl(st, base, ground + h * 0.58, ground + h * 0.70, r * 0.78, r * 0.74, RED, 10,
+		SKIN_STUCCO, 11.0)
 	# 등실 — 조금 넓게 내밀어 처마를 만든다
-	_cyl(st, base, ground + h * 0.86, ground + h * 1.0, r * 0.95, r * 0.80, DARK, 10)
-	_cyl(st, base, ground + h * 1.0, ground + h * 1.06, r * 0.5, 0.0, DARK, 8)
+	_cyl(st, base, ground + h * 0.86, ground + h * 1.0, r * 0.95, r * 0.80, DARK, 10,
+		SKIN_ROCK, 7.0)
+	_cyl(st, base, ground + h * 1.0, ground + h * 1.06, r * 0.5, 0.0, DARK, 8,
+		SKIN_ROCK, 7.0)
 
 ## 망루. 위가 조금 벌어진 네모난 돌탑.
 func _tower(st: SurfaceTool, base: Vector2, ground: float, h: float) -> void:
 	var r := h * 0.16
-	_cyl(st, base, ground, ground + h * 0.88, r, r * 0.88, STONE, 4)
-	_cyl(st, base, ground + h * 0.88, ground + h, r * 1.15, r * 1.10, STONE, 4)
+	_cyl(st, base, ground, ground + h * 0.88, r, r * 0.88, STONE, 4,
+		SKIN_ROCK, 16.0)
+	_cyl(st, base, ground + h * 0.88, ground + h, r * 1.15, r * 1.10, STONE, 4,
+		SKIN_ROCK, 16.0)
 
 ## 마을. 흰 벽에 붉은 기와를 인 집 여럿과 그 사이에 솟은 종탑 하나.
 ##
@@ -127,48 +145,78 @@ func _tower(st: SurfaceTool, base: Vector2, ground: float, h: float) -> void:
 func _town(st: SurfaceTool, base: Vector2, ground: float, h: float) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(base.x) * 7919 + int(base.y)
-	var spread := h * 1.15
-	for i in 11:
+	# 마을은 종탑 둘레에 바짝 모여 있었다. 그래서 이 거리에서도 종탑 하나만
+	# 보이고 집무리가 안 읽혔다. 실제 항구 마을만큼 펼치고 채를 늘린다.
+	var spread := h * 3.0
+	for i in 20:
 		var off := Vector2(rng.randf_range(-spread, spread),
 			rng.randf_range(-spread * 0.6, spread * 0.6))
-		var bh := h * rng.randf_range(0.24, 0.38)
-		var bw := h * rng.randf_range(0.20, 0.30)
-		# 위로만 흔든다. 아래로 흔들면 집이 땅에 파묻힌다.
-		var lift := ground + rng.randf_range(0.0, h * 0.06)
-		_cyl(st, base + off, lift, lift + bh, bw, bw, WHITE, 4)
+		var bh := h * rng.randf_range(0.34, 0.56)
+		var bw := h * rng.randf_range(0.22, 0.34)
+		# 집마다 제 자리의 땅을 따로 묻는다.
+		#
+		# 종탑 자리의 높이를 그대로 쓰다가 집이 전부 땅에 파묻혀 있었다.
+		# 마을이 종탑 하나만 남고 집무리가 안 보이던 것이 이 때문이다.
+		var gh := _coast.ground_near(base + off, 1200.0, false)
+		var floor_y: float = ground if gh.x == INF else gh.y
+		var lift := floor_y + rng.randf_range(0.0, h * 0.04)
+		_cyl(st, base + off, lift, lift + bh, bw, bw, WHITE, 4, SKIN_STUCCO, 12.0)
 		# 기와지붕
-		_cyl(st, base + off, lift + bh, lift + bh + h * 0.10, bw * 1.18, 0.0, ROOF, 4)
+		_cyl(st, base + off, lift + bh, lift + bh + h * 0.10, bw * 1.18, 0.0, ROOF, 4,
+			SKIN_TILE, 9.0)
 	# 종탑
 	var tw := h * 0.16
-	_cyl(st, base, ground, ground + h, tw, tw * 0.92, WHITE, 4)
-	_cyl(st, base, ground + h, ground + h * 1.16, tw * 1.1, 0.0, ROOF, 4)
+	_cyl(st, base, ground, ground + h, tw, tw * 0.92, WHITE, 4, SKIN_STUCCO, 12.0)
+	_cyl(st, base, ground + h, ground + h * 1.16, tw * 1.1, 0.0, ROOF, 4,
+		SKIN_TILE, 9.0)
 
 # ── 손 ──────────────────────────────────────────────────────────
 ## 밑동이 base 에 있는 원기둥(또는 각기둥) 하나.
 ##
 ## 정점의 xz 는 지리 좌표 그대로 넣고, 그 물건이 선 자리를 UV2 에 실어 보낸다.
 ## 셰이더가 둘의 차이로 "물건 안에서의 자리"를 알아내 가로만 부풀린다.
+## skin 은 어느 재질로 입힐지(SKIN_*), span 은 재질 한 장이 덮는 실제 크기(m).
 func _cyl(st: SurfaceTool, base: Vector2, y0: float, y1: float,
-		r0: float, r1: float, col: Color, sides: int) -> void:
+		r0: float, r1: float, col: Color, sides: int,
+		skin := SKIN_STUCCO, span := 9.0) -> void:
 	var ring := func(r: float, y: float, i: int) -> Vector3:
 		var a := TAU * float(i) / float(sides) + (PI * 0.25 if sides == 4 else 0.0)
 		return Vector3(base.x + cos(a) * r, y, base.y + sin(a) * r)
 
-	st.set_color(col)
+	# 재질 구분값은 색의 알파에 실어 보낸다
+	st.set_color(Color(col.r, col.g, col.b, skin))
 	st.set_uv2(base)
+
+	# 둘레를 따라 u, 높이를 따라 v. 어느 쪽도 늘어나지 않게 실제 길이로 잰다.
+	var circ: float = TAU * maxf(r0, 0.001) / span
+	var v0 := y0 / span
+	var v1 := y1 / span
+	var uu := func(i: int) -> float:
+		return float(i) / float(sides) * circ
+
 	for i in sides:
 		var j := (i + 1) % sides
 		var a0: Vector3 = ring.call(r0, y0, i)
 		var b0: Vector3 = ring.call(r0, y0, j)
 		var a1: Vector3 = ring.call(r1, y1, i)
 		var b1: Vector3 = ring.call(r1, y1, j)
+		var u0: float = uu.call(i)
+		var u1: float = uu.call(i + 1)
 		if r1 > 0.0001:
-			st.add_vertex(a0); st.add_vertex(a1); st.add_vertex(b1)
-			st.add_vertex(a0); st.add_vertex(b1); st.add_vertex(b0)
+			st.set_uv(Vector2(u0, v0)); st.add_vertex(a0)
+			st.set_uv(Vector2(u0, v1)); st.add_vertex(a1)
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(b1)
+			st.set_uv(Vector2(u0, v0)); st.add_vertex(a0)
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(b1)
+			st.set_uv(Vector2(u1, v0)); st.add_vertex(b0)
 			# 위를 덮는다
 			var top := Vector3(base.x, y1, base.y)
-			st.add_vertex(top); st.add_vertex(b1); st.add_vertex(a1)
+			st.set_uv(Vector2(circ * 0.5, v1)); st.add_vertex(top)
+			st.set_uv(Vector2(u1, v1)); st.add_vertex(b1)
+			st.set_uv(Vector2(u0, v1)); st.add_vertex(a1)
 		else:
 			# 뿔 — 지붕과 등대 꼭대기
 			var tip := Vector3(base.x, y1, base.y)
-			st.add_vertex(a0); st.add_vertex(tip); st.add_vertex(b0)
+			st.set_uv(Vector2(u0, v0)); st.add_vertex(a0)
+			st.set_uv(Vector2((u0 + u1) * 0.5, v1)); st.add_vertex(tip)
+			st.set_uv(Vector2(u1, v0)); st.add_vertex(b0)
