@@ -22,5 +22,17 @@ window/stretch/mode="canvas_items"
 
 [rendering]
 
+; 호환성(OpenGL) 렌더러로 못박는다.
+;
+; 적어두지 않으면 Godot 이 데스크톱에서 Forward+(Vulkan)로 뜬다. 우리 하늘 ·
+; 바다 · 별 셰이더는 전부 호환성 렌더러에 맞춰 만들고 맞춰온 것이라, 그쪽으로
+; 뜨면 한밤중에 하늘이 대낮이 되고 별이 사라진다.
+;
+; 웹은 Vulkan 이 없어 늘 호환성으로 돌았고, 개발 중 화면 확인도
+; --rendering-driver opengl3 를 붙여 왔다. 그래서 데스크톱으로 내보내기
+; 전까지는 이 차이가 드러날 자리가 없었다.
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+
 anti_aliasing/quality/msaa_3d=2
 environment/defaults/default_clear_color=Color(0.043, 0.086, 0.133, 1)
